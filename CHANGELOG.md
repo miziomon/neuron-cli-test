@@ -5,6 +5,15 @@ Tutte le modifiche rilevanti a questo progetto sono documentate in questo file.
 Il formato è basato su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/)
 e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/).
 
+## [0.5.0] - 2026-08-20
+
+### Cambiato
+
+- Rimosso il saluto statico iniziale della CLI: la presentazione è affidata al primo agente
+- Rimossi (commentati) gli echo di transizione tra una fase e la successiva
+- Il secondo agente non si presenta più: chiede subito i dati del viaggio
+- Il messaggio di avvio delle fasi successive alla prima non è più un saluto ("Ciao!") ma un avvio di contesto
+
 ## [0.4.0] - 2026-08-20
 
 ### Aggiunto
@@ -55,6 +64,7 @@ e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/)
 - Caricamento del file `.env` con precedenza delle variabili d'ambiente reali
 - Suite di test PHPUnit con provider finto senza chiamate HTTP reali
 
+[0.5.0]: https://github.com/miziomon/neuron-cli-test/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/miziomon/neuron-cli-test/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/miziomon/neuron-cli-test/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/miziomon/neuron-cli-test/compare/v0.1.0...v0.2.0

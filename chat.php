@@ -42,8 +42,6 @@ $ciano = static fn(string $t): string => $c('36', $t);   // battute dell'agente
 $grigio = static fn(string $t): string => $c('90', $t);  // conteggio token
 $verde = static fn(string $t): string => $c('32', $t);   // messaggi finali
 
-echo $ciano("Ciao, sono Neuron il tuo assistente virtuale.") . "\n\n";
-
 // Numero massimo di turni dell'agente prima della chiusura automatica (vale per ogni fase)
 $maxIterazioni = max(1, (int) ($_ENV['MAX_ITERAZIONI'] ?? 6));
 
@@ -62,6 +60,7 @@ $eseguiFase = static function (
     string $classeTurno,
     Closure $datiCompleti,
     Closure $estraiRecord,
+    string $messaggioAvvio = 'Ciao!',
 ) use ($ciano, $grigio, $maxIterazioni): ?array {
     // Esegue un turno strutturato con retry in caso di rate limit (429)
     $turno = static function (string $input) use ($agent, $classeTurno): object {
@@ -82,7 +81,7 @@ $eseguiFase = static function (
     };
 
     // Messaggio di avvio: l'agente inizia la raccolta dei dati
-    $turnoAgente = $turno("Ciao!");
+    $turnoAgente = $turno($messaggioAvvio);
     $iterazione = 0;
 
     while (true) {
@@ -153,7 +152,7 @@ echo $grigio("(dati salvati in data/utenti.json)") . "\n\n";
 
 // --- Fase 2: destinazione, numero di persone e periodo del viaggio ---
 
-echo $ciano("Passiamo ora all'organizzazione del tuo viaggio.") . "\n\n";
+// echo $ciano("Passiamo ora all'organizzazione del tuo viaggio.") . "\n\n";
 
 $viaggio = $eseguiFase(
     ViaggioAgent::make(),
@@ -167,6 +166,7 @@ $viaggio = $eseguiFase(
         'numero_persone' => $t->numeroPersone,
         'periodo' => trim($t->periodo),
     ],
+    messaggioAvvio: 'Procediamo con la raccolta dei dati del viaggio.',
 );
 
 if ($viaggio === null) {
@@ -181,13 +181,14 @@ echo $grigio("(dati salvati in data/viaggi.json)") . "\n\n";
 
 // --- Fase 3: ricerca dei voli tramite il server MCP FlightX ---
 
-echo $ciano("Ora cerchiamo i voli disponibili per il tuo viaggio.") . "\n\n";
+// echo $ciano("Ora cerchiamo i voli disponibili per il tuo viaggio.") . "\n\n";
 
 $ricercaVoli = $eseguiFase(
     VoliAgent::make($viaggio['destinazione'], $viaggio['periodo'], (int) $viaggio['numero_persone']),
     TurnoVolo::class,
     datiCompleti: static fn(TurnoVolo $t): bool => $t->ricercaCompletata,
     estraiRecord: static fn(TurnoVolo $t): array => [],
+    messaggioAvvio: 'Procediamo con la ricerca dei voli.',
 );
 
 if ($ricercaVoli === null) {
