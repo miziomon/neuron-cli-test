@@ -28,7 +28,12 @@ class TurnoAgente
     public ?string $cognome = null;
 
     #[SchemaProperty(
-        description: "true solo quando l'utente ha confermato esplicitamente che nome e cognome sono corretti",
+        description: "L'indirizzo email fornito dall'utente, oppure null se non ancora noto"
+    )]
+    public ?string $email = null;
+
+    #[SchemaProperty(
+        description: "true solo quando l'utente ha confermato esplicitamente che nome, cognome ed email sono corretti",
         required: true
     )]
     public bool $confermato = false;

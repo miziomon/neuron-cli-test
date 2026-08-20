@@ -17,7 +17,7 @@ class Archivio
     }
 
     /**
-     * @return array<int, array{nome: string, cognome: string, raccolto_il: string}>
+     * @return array<int, array<string, string|int>>
      */
     public function tutti(): array
     {
@@ -30,7 +30,10 @@ class Archivio
         return is_array($dati) ? $dati : [];
     }
 
-    public function salva(string $nome, string $cognome): void
+    /**
+     * @param array<string, string|int> $record
+     */
+    public function salva(array $record): void
     {
         $directory = dirname($this->percorso);
         if (!is_dir($directory) && !mkdir($directory, 0777, true)) {
@@ -38,11 +41,7 @@ class Archivio
         }
 
         $dati = $this->tutti();
-        $dati[] = [
-            'nome' => $nome,
-            'cognome' => $cognome,
-            'raccolto_il' => date(DATE_ATOM),
-        ];
+        $dati[] = $record + ['raccolto_il' => date(DATE_ATOM)];
 
         if (file_put_contents(
             $this->percorso,

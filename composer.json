@@ -1,4 +1,5 @@
 {
+    "version": "0.2.0",
     "require": {
         "php": ">=8.1",
         "neuron-core/neuron-ai": "^3.16"

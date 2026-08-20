@@ -2,7 +2,12 @@
 
 ## Panoramica del progetto
 
-Applicazione CLI PHP didattica basata sul framework **Neuron AI** (`neuron-core/neuron-ai`, v3). Un agente conversazionale chiamato "Neuron" dialoga con l'utente in italiano con l'unico obiettivo di raccogliere **nome e cognome**, chiedere conferma esplicita e salvarli in un file JSON (`data/utenti.json`). L'agente usa il provider OpenRouter (compatibile OpenAI) tramite `NeuronAI\Providers\OpenAILike` e sfrutta lo structured output di Neuron AI: ogni turno di conversazione restituisce un oggetto tipizzato (`TurnoAgente`) invece di testo libero.
+Applicazione CLI PHP didattica basata sul framework **Neuron AI** (`neuron-core/neuron-ai`, v3). Un agente conversazionale chiamato "Neuron" dialoga con l'utente in italiano in **due fasi sequenziali**:
+
+1. **Fase anagrafica** (`NeuronAgent`): raccoglie **nome, cognome ed email**, chiede conferma esplicita e salva in `data/utenti.json`.
+2. **Fase viaggio** (`ViaggioAgent`): parte solo dopo il completamento della prima fase; raccoglie **destinazione, numero di persone e periodo** e salva in `data/viaggi.json`, collegando il record all'utente tramite l'email.
+
+Entrambi gli agenti usano il provider OpenRouter (compatibile OpenAI) tramite `NeuronAI\Providers\OpenAILike` e lo structured output di Neuron AI: ogni turno restituisce un oggetto tipizzato (`TurnoAgente` / `TurnoViaggio`) invece di testo libero. Il loop di conversazione è condiviso (closure `eseguiFase` in `chat.php`); il contatore delle iterazioni riparte da `#1` a ogni fase.
 
 ## Stack tecnologico
 
@@ -14,12 +19,14 @@ Applicazione CLI PHP didattica basata sul framework **Neuron AI** (`neuron-core/
 
 ## Struttura del codice
 
-- `chat.php` — entry point della chat interattiva. Carica manualmente il file `.env` (le variabili d'ambiente reali hanno precedenza), esegue il loop di conversazione, gestisce il retry con backoff esponenziale in caso di rate limit (HTTP 429), mostra il conteggio dei token e salva i dati confermati. Codici di uscita: `0` successo/uscita volontaria, `1` errore di configurazione o di comunicazione, `2` raggiunto il numero massimo di iterazioni.
-- `src/Neuron/NeuronAgent.php` — definizione dell'agente: provider OpenRouter (`https://openrouter.ai/api/v1`) e system prompt in italiano costruito con `SystemPrompt` (background, steps, output).
-- `src/Neuron/TurnoAgente.php` — classe DTO dello structured output con attributi `#[SchemaProperty]`: `risposta` (string, obbligatoria), `nome` e `cognome` (nullable), `confermato` (bool, obbligatorio).
-- `src/Support/Archivio.php` — persistenza minimale su file JSON: legge (`tutti()`) e accoda (`salva()`) record `{nome, cognome, raccolto_il}`, creando la directory se mancante.
-- `tests/` — `NeuronAgentTest.php`, `ArchivioTest.php` e il doppione di test `FakeProvider.php`.
-- `data/utenti.json` — dati raccolti a runtime (git-ignored).
+- `chat.php` — entry point della chat interattiva. Carica manualmente il file `.env` (le variabili d'ambiente reali hanno precedenza), esegue le due fasi di raccolta tramite la closure condivisa `eseguiFase` (loop di conversazione, retry con backoff esponenziale su HTTP 429, conteggio dei token, limite di iterazioni), valida i dati e li salva. Codici di uscita: `0` successo/rifiuto/uscita volontaria, `1` errore di configurazione o di comunicazione, `2` raggiunto il numero massimo di iterazioni.
+- `src/Neuron/NeuronAgent.php` — agente della fase anagrafica: provider OpenRouter (`https://openrouter.ai/api/v1`) e system prompt in italiano costruito con `SystemPrompt` (background, steps, output).
+- `src/Neuron/TurnoAgente.php` — DTO dello structured output della fase 1 con attributi `#[SchemaProperty]`: `risposta` (string, obbligatoria), `nome`, `cognome` ed `email` (nullable), `confermato` (bool, obbligatorio).
+- `src/Neuron/ViaggioAgent.php` — agente della fase viaggio: stesso provider e struttura di `NeuronAgent`.
+- `src/Neuron/TurnoViaggio.php` — DTO dello structured output della fase 2: `risposta`, `destinazione`, `numeroPersone` (?int), `periodo` (nullable), `confermato`.
+- `src/Support/Archivio.php` — persistenza minimale su file JSON: legge (`tutti()`) e accoda (`salva(array $record)`) record arricchiti con `raccolto_il`, creando la directory se mancante.
+- `tests/` — `NeuronAgentTest.php`, `ViaggioAgentTest.php`, `ArchivioTest.php` e i doppioni di test `FakeProvider.php` / `AgenteFinto.php`.
+- `data/utenti.json`, `data/viaggi.json` — dati raccolti a runtime (git-ignored).
 
 ## Build e test
 
@@ -28,7 +35,7 @@ Non esiste una fase di build; Composer gestisce tutto.
 ```bash
 composer install        # installa le dipendenze
 php chat.php            # avvia la chat interattiva (richiede .env)
-vendor/bin/phpunit      # esegue la suite di test (4 test, configurazione in phpunit.xml)
+vendor/bin/phpunit      # esegue la suite di test (7 test, configurazione in phpunit.xml)
 ```
 
 ## Configurazione richiesta
@@ -59,5 +66,5 @@ Senza `OPENROUTER_API_KEY` e `OPENROUTER_MODEL` lo script esce con errore. I col
 ## Considerazioni di sicurezza
 
 - `.env` contiene la chiave API OpenRouter ed è escluso da git (`.gitignore` copre `/vendor/`, `.env`, `/data/`): non committarlo mai e non leggerne il contenuto per esporlo.
-- I dati raccolti (nome e cognome degli utenti) sono dati personali salvati in chiaro in `data/utenti.json`, anch'esso git-ignored.
-- La validazione di nome/cognome in `chat.php` accetta solo lettere, spazi, apostrofi e trattini (regex Unicode `/^[\p{L}][\p{L}\s\'-]*$/u`) prima del salvataggio.
+- I dati raccolti (anagrafiche e viaggi degli utenti) sono dati personali salvati in chiaro in `data/utenti.json` e `data/viaggi.json`, entrambi git-ignored.
+- La validazione in `chat.php` accetta solo lettere, spazi, apostrofi e trattini (regex Unicode `/^[\p{L}][\p{L}\s\'-]*$/u`) per nome, cognome e destinazione; l'email è validata con `filter_var(..., FILTER_VALIDATE_EMAIL)`; il numero di persone deve essere un intero >= 1. Il salvataggio avviene solo a validazione superata.

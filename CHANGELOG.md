@@ -5,7 +5,19 @@ Tutte le modifiche rilevanti a questo progetto sono documentate in questo file.
 Il formato è basato su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/)
 e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/).
 
-## [1.0.0] - 2026-08-20
+## [0.2.0] - 2026-08-20
+
+### Aggiunto
+
+- Raccolta dell'**email** nella fase anagrafica, con validazione lato CLI tramite `filter_var` (`FILTER_VALIDATE_EMAIL`)
+- Secondo agente `ViaggioAgent` che parte solo dopo il completamento della prima fase e raccoglie **destinazione, numero di persone e periodo** del viaggio
+- Persistenza dei viaggi in `data/viaggi.json`, collegati all'utente tramite l'email
+- Il contatore delle iterazioni riparte da `#1` a ogni fase
+- Gestione del rifiuto esplicito dell'utente: chiusura gentile senza salvataggio
+- `Archivio::salva()` ora accetta un record generico (`array`) invece di nome/cognome fissi
+- Test per il DTO `TurnoViaggio` e per i record di viaggio; helper condiviso `AgenteFinto`
+
+## [0.1.0] - 2026-08-20
 
 ### Aggiunto
 
@@ -23,4 +35,5 @@ e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/)
 - Caricamento del file `.env` con precedenza delle variabili d'ambiente reali
 - Suite di test PHPUnit con provider finto senza chiamate HTTP reali
 
-[1.0.0]: https://github.com/miziomon/neuron-cli-test/releases/tag/v1.0.0
+[0.2.0]: https://github.com/miziomon/neuron-cli-test/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/miziomon/neuron-cli-test/releases/tag/v0.1.0

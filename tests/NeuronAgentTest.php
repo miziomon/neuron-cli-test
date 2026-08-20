@@ -5,43 +5,25 @@ declare(strict_types=1);
 namespace App\Tests;
 
 use App\Neuron\TurnoAgente;
-use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\Providers\AIProviderInterface;
 use PHPUnit\Framework\TestCase;
 
 class NeuronAgentTest extends TestCase
 {
-    private function agenteConRisposta(string $json): Agent
+    private function agenteConRisposta(string $json): AgenteFinto
     {
         $messaggio = (new AssistantMessage($json))
             ->setUsage(new Usage(inputTokens: 120, outputTokens: 30));
 
-        return new class ($messaggio) extends Agent {
-            public function __construct(
-                private readonly AssistantMessage $risposta
-            ) {
-                parent::__construct();
-            }
-
-            protected function provider(): AIProviderInterface
-            {
-                return new FakeProvider($this->risposta);
-            }
-
-            protected function instructions(): string
-            {
-                return 'Agente di test';
-            }
-        };
+        return new AgenteFinto($messaggio);
     }
 
     public function testStructuredOutputCompleto(): void
     {
         $agent = $this->agenteConRisposta(
-            '{"risposta":"Perfetto, grazie!","nome":"Mario","cognome":"Rossi","confermato":true}'
+            '{"risposta":"Perfetto, grazie!","nome":"Mario","cognome":"Rossi","email":"mario.rossi@example.com","confermato":true}'
         );
 
         /** @var TurnoAgente $turno */
@@ -49,6 +31,7 @@ class NeuronAgentTest extends TestCase
 
         $this->assertSame('Mario', $turno->nome);
         $this->assertSame('Rossi', $turno->cognome);
+        $this->assertSame('mario.rossi@example.com', $turno->email);
         $this->assertTrue($turno->confermato);
         $this->assertSame('Perfetto, grazie!', $turno->risposta);
     }
@@ -56,7 +39,7 @@ class NeuronAgentTest extends TestCase
     public function testStructuredOutputParziale(): void
     {
         $agent = $this->agenteConRisposta(
-            '{"risposta":"E il cognome?","nome":"Mario","cognome":null,"confermato":false}'
+            '{"risposta":"E il cognome?","nome":"Mario","cognome":null,"email":null,"confermato":false}'
         );
 
         /** @var TurnoAgente $turno */
@@ -64,13 +47,14 @@ class NeuronAgentTest extends TestCase
 
         $this->assertSame('Mario', $turno->nome);
         $this->assertNull($turno->cognome);
+        $this->assertNull($turno->email);
         $this->assertFalse($turno->confermato);
     }
 
     public function testConteggioTokenDisponibile(): void
     {
         $agent = $this->agenteConRisposta(
-            '{"risposta":"Ciao!","nome":null,"cognome":null,"confermato":false}'
+            '{"risposta":"Ciao!","nome":null,"cognome":null,"email":null,"confermato":false}'
         );
 
         $agent->structured(new UserMessage('test'), TurnoAgente::class);
