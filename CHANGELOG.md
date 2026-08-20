@@ -5,6 +5,16 @@ Tutte le modifiche rilevanti a questo progetto sono documentate in questo file.
 Il formato è basato su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/)
 e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/).
 
+## [0.4.0] - 2026-08-20
+
+### Aggiunto
+
+- Terza fase di conversazione (`VoliAgent`): ricerca dei voli sulla base del viaggio raccolto, con conferma esplicita di aeroporti (IATA), date e passeggeri
+- Server MCP stdio (`flightx-mcp.php`) che espone i servizi FlightX come tool `cerca_voli` (elenco voli in formato leggibile) e `seleziona_volo` (verifica disponibilità + dossier temporaneo, nessuna prenotazione)
+- Wrapper FlightX (`src/Services/FlightX/`) adattato per l'uso standalone: layer HTTP portato da Illuminate a Guzzle, supporto a password pre-hashata (`passwordMd5`), logging su STDERR con credenziali oscurate
+- `App\MCP\LineStdioTransport`: transport MCP con accumulo della risposta fino a JSON completo (risolve il limite di `StdioTransport` di Neuron con payload oltre 4 KB)
+- Test: validazioni locali di `FlightXClient` e handshake del server MCP (18 test, 59 asserzioni)
+
 ## [0.3.0] - 2026-08-20
 
 ### Aggiunto
@@ -45,6 +55,7 @@ e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/)
 - Caricamento del file `.env` con precedenza delle variabili d'ambiente reali
 - Suite di test PHPUnit con provider finto senza chiamate HTTP reali
 
+[0.4.0]: https://github.com/miziomon/neuron-cli-test/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/miziomon/neuron-cli-test/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/miziomon/neuron-cli-test/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/miziomon/neuron-cli-test/releases/tag/v0.1.0

@@ -5,7 +5,9 @@ declare(strict_types=1);
 use App\Neuron\NeuronAgent;
 use App\Neuron\TurnoAgente;
 use App\Neuron\TurnoViaggio;
+use App\Neuron\TurnoVolo;
 use App\Neuron\ViaggioAgent;
+use App\Neuron\VoliAgent;
 use App\Support\Archivio;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -175,9 +177,24 @@ if ($viaggio === null) {
 // Il viaggio è collegato all'utente tramite l'email raccolta nella fase 1
 (new Archivio(__DIR__ . '/data/viaggi.json'))->salva(['email' => $utente['email'], ...$viaggio]);
 echo $verde("Neuron: Grazie {$utente['nome']}! Viaggio registrato: {$viaggio['destinazione']}, {$viaggio['numero_persone']} persone, {$viaggio['periodo']}. Buon viaggio!") . "\n";
-echo $grigio("(dati salvati in data/viaggi.json)") . "\n";
+echo $grigio("(dati salvati in data/viaggi.json)") . "\n\n";
 
-// Riepilogo finale dei dati raccolti nelle due fasi
+// --- Fase 3: ricerca dei voli tramite il server MCP FlightX ---
+
+echo $ciano("Ora cerchiamo i voli disponibili per il tuo viaggio.") . "\n\n";
+
+$ricercaVoli = $eseguiFase(
+    VoliAgent::make($viaggio['destinazione'], $viaggio['periodo'], (int) $viaggio['numero_persone']),
+    TurnoVolo::class,
+    datiCompleti: static fn(TurnoVolo $t): bool => $t->ricercaCompletata,
+    estraiRecord: static fn(TurnoVolo $t): array => [],
+);
+
+if ($ricercaVoli === null) {
+    echo "Va bene, nessuna ricerca effettuata.\n";
+}
+
+// Riepilogo finale dei dati raccolti nelle fasi precedenti
 echo "\n" . $verde("--- Riepilogo ---") . "\n";
 echo $ciano("Anagrafica: {$utente['nome']} {$utente['cognome']} ({$utente['email']})") . "\n";
 echo $ciano("Viaggio: {$viaggio['destinazione']}, {$viaggio['numero_persone']} persone, {$viaggio['periodo']}") . "\n";

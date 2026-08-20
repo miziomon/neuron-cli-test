@@ -2,3 +2,4 @@
 .env
 /data/
 /.phpunit.cache/
+/_temp

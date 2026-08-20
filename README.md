@@ -4,6 +4,7 @@ Applicazione CLI PHP didattica basata sul framework [Neuron AI](https://github.c
 
 1. **Anagrafica** — raccoglie **nome, cognome ed email**, chiede conferma esplicita e salva in `data/utenti.json`
 2. **Viaggio** — parte solo dopo il completamento della prima fase e raccoglie **destinazione, numero di persone e periodo**, salvando in `data/viaggi.json` con l'email dell'utente come collegamento
+3. **Voli** — sulla base del viaggio raccolto, chiede conferma di aeroporti (IATA), date e passeggeri, cerca i voli tramite il **server MCP FlightX** e presenta un elenco leggibile delle opzioni disponibili
 
 ## Caratteristiche
 
@@ -15,6 +16,7 @@ Applicazione CLI PHP didattica basata sul framework [Neuron AI](https://github.c
 - Conteggio dei token (input / output / totale) sotto ogni risposta dell'agente
 - Riepilogo finale dei dati raccolti (anagrafica + viaggio) prima dell'uscita
 - Limite configurabile di iterazioni con chiusura automatica; il contatore riparte da `#1` a ogni fase
+- Ricerca voli via **MCP**: server stdio (`flightx-mcp.php`) che espone il wrapper FlightX come tool `cerca_voli` / `seleziona_volo`, collegato all'agente con `McpConnector`
 - Retry con backoff esponenziale in caso di rate limit (HTTP 429)
 - Colori ANSI (disattivabili con `NO_COLOR=1`)
 - Suite di test PHPUnit senza chiamate HTTP reali (provider finto)
@@ -41,6 +43,12 @@ Creare un file `.env` nella radice del progetto:
 OPENROUTER_API_KEY=sk-or-...
 OPENROUTER_MODEL=openai/gpt-5.6-luna   # un qualsiasi modello disponibile su OpenRouter
 MAX_ITERAZIONI=6                        # opzionale, default 6
+
+# Credenziali FlightX (fase 3, ricerca voli via MCP)
+FLIGHTX_BASE_URL=https://api.stage.flightx.app
+FLIGHTX_API_KEY=...
+FLIGHTX_USERNAME=...
+FLIGHTX_PASSWORD_MD5=...                # password già hashata con md5(strtolower(...))
 ```
 
 Le variabili d'ambiente reali hanno precedenza sui valori del file `.env`:
@@ -78,12 +86,17 @@ I test non effettuano chiamate HTTP: usano un provider finto (`tests/FakeProvide
 ## Struttura del progetto
 
 ```
-chat.php                      # entry point: esegue le due fasi di raccolta
+chat.php                      # entry point: esegue le tre fasi di raccolta
+flightx-mcp.php               # server MCP stdio che espone i tool FlightX
 src/Neuron/OpenRouterAgent.php  # classe base astratta con il provider OpenRouter condiviso
 src/Neuron/NeuronAgent.php    # agente anagrafica: system prompt fase 1
 src/Neuron/TurnoAgente.php    # DTO structured output fase 1 (nome, cognome, email)
 src/Neuron/ViaggioAgent.php   # agente viaggio: system prompt fase 2
 src/Neuron/TurnoViaggio.php   # DTO structured output fase 2 (destinazione, persone, periodo)
+src/Neuron/VoliAgent.php      # agente voli: tool MCP FlightX + system prompt fase 3
+src/Neuron/TurnoVolo.php      # DTO structured output fase 3 (aeroporti, date, adulti)
+src/MCP/LineStdioTransport.php  # transport MCP stdio con buffer (gestisce risposte > 4 KB)
+src/Services/FlightX/         # wrapper delle API FlightX (client, config, eccezioni)
 src/Support/Archivio.php      # persistenza su file JSON
 tests/                        # suite PHPUnit
 data/utenti.json          # anagrafiche raccolte a runtime (git-ignored)
