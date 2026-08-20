@@ -2,13 +2,12 @@
 
 ## Panoramica del progetto
 
-Applicazione CLI PHP didattica basata sul framework **Neuron AI** (`neuron-core/neuron-ai`, v3). Un agente conversazionale chiamato "Neuron" dialoga con l'utente in italiano in **due fasi sequenziali**:
+Applicazione CLI PHP didattica basata sul framework **Neuron AI** (`neuron-core/neuron-ai`, v3). Gli agenti conversazionali dialogano con l'utente in italiano in **due fasi sequenziali**:
 
-1. **Fase anagrafica** (`NeuronAgent`): raccoglie **nome, cognome ed email**, chiede conferma esplicita e salva in `data/utenti.json`.
-2. **Fase viaggio** (`ViaggioAgent`): parte solo dopo il completamento della prima fase; raccoglie **destinazione, numero di persone e periodo** e salva in `data/viaggi.json`, collegando il record all'utente tramite l'email.
-3. **Fase voli** (`VoliAgent`): sulla base del viaggio, chiede conferma di **aeroporti (IATA), date e passeggeri** e cerca i voli tramite il server MCP FlightX (`flightx-mcp.php`, tool `cerca_voli`/`seleziona_volo` collegati con `McpConnector`). Nessuna persistenza: è una consultazione.
+1. **Fase receptionist** (`ReceptionistAgent`): un unico agente raccoglie **nome, cognome, email, destinazione, aeroporti IATA di partenza/destinazione, data di partenza (ed eventuale ritorno), adulti e bambini**; chiede conferma esplicita del ricapitolo completo e salva in `data/utenti.json` e `data/viaggi.json` (collegati tramite email).
+2. **Fase voli** (`VoliAgent`): riceve tutti i parametri già raccolti, chiede una sola conferma e cerca i voli tramite il server MCP FlightX (`flightx-mcp.php`, tool `cerca_voli`/`seleziona_volo` collegati con `McpConnector`). Nessuna persistenza: è una consultazione.
 
-Entrambi gli agenti usano il provider OpenRouter (compatibile OpenAI) tramite `NeuronAI\Providers\OpenAILike` e lo structured output di Neuron AI: ogni turno restituisce un oggetto tipizzato (`TurnoAgente` / `TurnoViaggio`) invece di testo libero. Il loop di conversazione è condiviso (closure `eseguiFase` in `chat.php`); il contatore delle iterazioni riparte da `#1` a ogni fase.
+Gli agenti usano il provider OpenRouter (compatibile OpenAI) tramite `NeuronAI\Providers\OpenAILike` e lo structured output di Neuron AI: ogni turno restituisce un oggetto tipizzato (`TurnoReceptionist` / `TurnoVolo`) invece di testo libero. Il loop di conversazione è condiviso (closure `eseguiFase` in `chat.php`); il contatore delle iterazioni riparte da `#1` a ogni fase.
 
 ## Stack tecnologico
 
@@ -20,19 +19,17 @@ Entrambi gli agenti usano il provider OpenRouter (compatibile OpenAI) tramite `N
 
 ## Struttura del codice
 
-- `chat.php` — entry point della chat interattiva. Carica manualmente il file `.env` (le variabili d'ambiente reali hanno precedenza), esegue le tre fasi di raccolta tramite la closure condivisa `eseguiFase` (loop di conversazione, retry con backoff esponenziale su HTTP 429, conteggio dei token, limite di iterazioni), valida i dati e li salva. Codici di uscita: `0` successo/rifiuto/uscita volontaria, `1` errore di configurazione o di comunicazione, `2` raggiunto il numero massimo di iterazioni.
+- `chat.php` — entry point della chat interattiva. Carica manualmente il file `.env` (le variabili d'ambiente reali hanno precedenza), esegue le due fasi tramite la closure condivisa `eseguiFase` (loop di conversazione, retry con backoff esponenziale su HTTP 429, conteggio dei token, limite di iterazioni), valida i dati e li salva. Se l'agente conferma ma alcuni campi valorizzati non superano la validazione, `eseguiFase` non esce: rimanda gli errori all'agente (parametro `erroriValidazione`) e la fase continua finché i dati non sono corretti. Codici di uscita: `0` successo/rifiuto/uscita volontaria, `1` errore di configurazione o di comunicazione, `2` raggiunto il numero massimo di iterazioni.
 - `flightx-mcp.php` — server MCP su stdio (JSON-RPC 2.0 newline-delimited) che espone i servizi FlightX come tool `cerca_voli` e `seleziona_volo`; risponde SOLO su STDOUT, diagnostica su STDERR. Credenziali lette dalle variabili d'ambiente `FLIGHTX_*` passate dal connettore.
 - `src/Neuron/OpenRouterAgent.php` — classe base astratta con il provider OpenRouter (`OpenAILike` su `https://openrouter.ai/api/v1`) condiviso dagli agenti.
-- `src/Neuron/NeuronAgent.php` — agente della fase anagrafica: system prompt in italiano costruito con `SystemPrompt` (background, steps, output).
-- `src/Neuron/TurnoAgente.php` — DTO dello structured output della fase 1 con attributi `#[SchemaProperty]`: `risposta` (string, obbligatoria), `nome`, `cognome` ed `email` (nullable), `confermato` (bool, obbligatorio).
-- `src/Neuron/ViaggioAgent.php` — agente della fase viaggio: estende `OpenRouterAgent` e definisce il proprio system prompt.
-- `src/Neuron/TurnoViaggio.php` — DTO dello structured output della fase 2: `risposta`, `destinazione`, `numeroPersone` (?int), `periodo` (nullable), `confermato`.
-- `src/Neuron/VoliAgent.php` — agente della fase voli: riceve i dati del viaggio nel costruttore (li inserisce nel system prompt) e dichiara in `tools()` i tool MCP FlightX tramite `McpConnector` con `LineStdioTransport`.
-- `src/Neuron/TurnoVolo.php` — DTO dello structured output della fase 3: `risposta`, `aeroportoPartenza`, `aeroportoDestinazione`, `dataPartenza`, `dataRitorno`, `adulti`, `ricercaCompletata`, `confermato`.
+- `src/Neuron/ReceptionistAgent.php` — unico agente di raccolta: system prompt in italiano costruito con `SystemPrompt` (background, steps, output).
+- `src/Neuron/TurnoReceptionist.php` — DTO dello structured output della fase receptionist con attributi `#[SchemaProperty]`: `risposta` (obbligatoria), `nome`, `cognome`, `email`, `destinazione`, `aeroportoPartenza`, `aeroportoDestinazione`, `dataPartenza`, `dataRitorno`, `adulti`, `bambini` (nullable), `confermato` (bool, obbligatorio).
+- `src/Neuron/VoliAgent.php` — agente della fase voli: riceve i parametri di ricerca nel costruttore (li inserisce nel system prompt) e dichiara in `tools()` i tool MCP FlightX tramite `McpConnector` con `LineStdioTransport`.
+- `src/Neuron/TurnoVolo.php` — DTO dello structured output della fase voli: `risposta`, `aeroportoPartenza`, `aeroportoDestinazione`, `dataPartenza`, `dataRitorno`, `adulti`, `bambini`, `ricercaCompletata`, `confermato`.
 - `src/MCP/LineStdioTransport.php` — transport MCP stdio che accumula la risposta finché non è JSON completo (lo `StdioTransport` di Neuron fallisce con payload oltre 4 KB).
 - `src/Services/FlightX/` — wrapper delle API FlightX (`FlightXClient`, `FlightXConfig`, gerarchia `Exceptions`): stateful (token JWT + ultima ricerca), validazione locale IATA/date/passeggeri, layer HTTP Guzzle, password in chiaro oppure pre-hashata (`passwordMd5`).
 - `src/Support/Archivio.php` — persistenza minimale su file JSON: legge (`tutti()`) e accoda (`salva(array $record)`) record arricchiti con `raccolto_il`, creando la directory se mancante.
-- `tests/` — `NeuronAgentTest.php`, `ViaggioAgentTest.php`, `FlightXClientTest.php`, `FlightXMcpServerTest.php`, `ArchivioTest.php` e i doppioni di test `FakeProvider.php` / `AgenteFinto.php`.
+- `tests/` — `ReceptionistAgentTest.php`, `FlightXClientTest.php`, `FlightXMcpServerTest.php`, `ArchivioTest.php` e i doppioni di test `FakeProvider.php` / `AgenteFinto.php`.
 - `data/utenti.json`, `data/viaggi.json` — dati raccolti a runtime (git-ignored).
 
 ## Build e test
@@ -42,7 +39,7 @@ Non esiste una fase di build; Composer gestisce tutto.
 ```bash
 composer install        # installa le dipendenze
 php chat.php            # avvia la chat interattiva (richiede .env)
-vendor/bin/phpunit      # esegue la suite di test (18 test, configurazione in phpunit.xml)
+vendor/bin/phpunit      # esegue la suite di test (16 test, configurazione in phpunit.xml)
 ```
 
 ## Configurazione richiesta
@@ -81,4 +78,4 @@ Senza `OPENROUTER_API_KEY` e `OPENROUTER_MODEL` lo script esce con errore; senza
 - Le credenziali FlightX passano al server MCP solo come variabili d'ambiente del processo figlio; il wrapper le oscura nei log (`redact()`).
 - Il wrapper FlightX è di sola consultazione: non espone prenotazione (`bookItem`) né emissione biglietti (`issueTickets`); `seleziona_volo` crea solo un dossier temporaneo di 24 ore.
 - I dati raccolti (anagrafiche e viaggi degli utenti) sono dati personali salvati in chiaro in `data/utenti.json` e `data/viaggi.json`, entrambi git-ignored.
-- La validazione in `chat.php` accetta solo lettere, spazi, apostrofi e trattini (regex Unicode `/^[\p{L}][\p{L}\s\'-]*$/u`) per nome, cognome e destinazione; l'email è validata con `filter_var(..., FILTER_VALIDATE_EMAIL)`; il numero di persone deve essere un intero >= 1. Il salvataggio avviene solo a validazione superata.
+- La validazione in `chat.php` accetta solo lettere, spazi, apostrofi e trattini (regex Unicode `/^[\p{L}][\p{L}\s\'-]*$/u`) per nome, cognome e destinazione; l'email è validata con `filter_var(..., FILTER_VALIDATE_EMAIL)`; gli aeroporti devono essere codici IATA di 3 lettere; le date devono essere `YYYY-MM-DD` valide (il ritorno non può precedere la partenza); i passeggeri devono includere almeno 1 adulto e non superare 9 in totale. Il salvataggio avviene solo a validazione superata.

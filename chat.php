@@ -2,11 +2,9 @@
 
 declare(strict_types=1);
 
-use App\Neuron\NeuronAgent;
-use App\Neuron\TurnoAgente;
-use App\Neuron\TurnoViaggio;
+use App\Neuron\ReceptionistAgent;
+use App\Neuron\TurnoReceptionist;
 use App\Neuron\TurnoVolo;
-use App\Neuron\ViaggioAgent;
 use App\Neuron\VoliAgent;
 use App\Support\Archivio;
 use NeuronAI\Agent\Agent;
@@ -54,6 +52,11 @@ $soloLettere = static fn(?string $valore): bool =>
  * conteggio token, retry su rate limit e limite di iterazioni (riparte sempre da #1).
  *
  * Restituisce il record raccolto, oppure null se l'utente ha rifiutato di fornire i dati.
+ *
+ * Se l'agente conferma ma alcuni dati NON SUPERANO la validazione (campi valorizzati
+ * ma malformati, es. email senza chiocciola o IATA non di 3 lettere), la closure
+ * $erroriValidazione elenca i problemi: la fase NON termina, gli errori vengono
+ * rimandati all'agente che chiede la correzione e poi una nuova conferma.
  */
 $eseguiFase = static function (
     Agent $agent,
@@ -61,6 +64,7 @@ $eseguiFase = static function (
     Closure $datiCompleti,
     Closure $estraiRecord,
     string $messaggioAvvio = 'Ciao!',
+    ?Closure $erroriValidazione = null,
 ) use ($ciano, $grigio, $maxIterazioni): ?array {
     // Esegue un turno strutturato con retry in caso di rate limit (429)
     $turno = static function (string $input) use ($agent, $classeTurno): object {
@@ -96,8 +100,23 @@ $eseguiFase = static function (
         echo "\n";
 
         if ($turnoAgente->confermato) {
-            // Con dati validi la raccolta è completa; altrimenti è un rifiuto dell'utente
-            return $datiCompleti($turnoAgente) ? $estraiRecord($turnoAgente) : null;
+            if ($datiCompleti($turnoAgente)) {
+                return $estraiRecord($turnoAgente);
+            }
+
+            // Campi valorizzati ma non validi: la fase continua chiedendo la correzione
+            $errori = $erroriValidazione !== null ? $erroriValidazione($turnoAgente) : [];
+            if ($errori !== []) {
+                echo $grigio("   (alcuni dati non sono validi, chiedo la correzione...)") . "\n\n";
+                $turnoAgente = $turno(
+                    "Attenzione, questi dati che ho raccolto non sono validi: " . implode('; ', $errori)
+                    . ". Chiedimi gentilmente di correggerli, aggiorna i campi corrispondenti e poi chiedimi di nuovo conferma del ricapitolo completo."
+                );
+                continue;
+            }
+
+            // Nessun dato raccolto o solo campi mancanti: rifiuto dell'utente
+            return null;
         }
 
         if ($iterazione >= $maxIterazioni) {
@@ -124,67 +143,134 @@ $eseguiFase = static function (
     }
 };
 
-// --- Fase 1: nome, cognome ed email ---
+// Codici IATA di 3 lettere e date in formato YYYY-MM-DD
+$iataValido = static fn(?string $valore): bool =>
+    $valore !== null && preg_match('/^[A-Za-z]{3}$/', trim($valore)) === 1;
+$dataValida = static function (?string $valore): bool {
+    if ($valore === null) {
+        return false;
+    }
+    $data = DateTime::createFromFormat('Y-m-d', trim($valore));
 
-$utente = $eseguiFase(
-    NeuronAgent::make(),
-    TurnoAgente::class,
-    datiCompleti: static fn(TurnoAgente $t): bool =>
-        $soloLettere($t->nome)
+    return $data !== false && $data->format('Y-m-d') === trim($valore);
+};
+// Il modello a volte restituisce "" invece di null per i campi opzionali
+$vuoto = static fn(?string $valore): bool => $valore === null || trim($valore) === '';
+
+// --- Fase 1: receptionist (anagrafica + viaggio + parametri di ricerca voli) ---
+
+$datiCompletiReceptionist = static function (TurnoReceptionist $t) use ($soloLettere, $iataValido, $dataValida, $vuoto): bool {
+    $ritorno = $vuoto($t->dataRitorno) ? null : trim($t->dataRitorno);
+
+    return $soloLettere($t->nome)
         && $soloLettere($t->cognome)
-        && $t->email !== null
-        && filter_var($t->email, FILTER_VALIDATE_EMAIL) !== false,
-    estraiRecord: static fn(TurnoAgente $t): array => [
+        && $t->email !== null && filter_var(trim($t->email), FILTER_VALIDATE_EMAIL) !== false
+        && $soloLettere($t->destinazione)
+        && $iataValido($t->aeroportoPartenza)
+        && $iataValido($t->aeroportoDestinazione)
+        && $dataValida($t->dataPartenza)
+        && ($ritorno === null || ($dataValida($ritorno) && $ritorno >= trim($t->dataPartenza)))
+        && $t->adulti !== null && $t->adulti >= 1
+        && $t->bambini !== null && $t->bambini >= 0
+        && ($t->adulti + $t->bambini) <= 9;
+};
+
+// Elenca solo i campi VALORIZZATI ma non validi: i campi ancora null non contano
+$erroriReceptionist = static function (TurnoReceptionist $t) use ($soloLettere, $iataValido, $dataValida, $vuoto): array {
+    $errori = [];
+    if (!$vuoto($t->nome) && !$soloLettere($t->nome)) {
+        $errori[] = "il nome \"{$t->nome}\" contiene caratteri non ammessi (solo lettere)";
+    }
+    if (!$vuoto($t->cognome) && !$soloLettere($t->cognome)) {
+        $errori[] = "il cognome \"{$t->cognome}\" contiene caratteri non ammessi (solo lettere)";
+    }
+    if (!$vuoto($t->email) && filter_var(trim($t->email), FILTER_VALIDATE_EMAIL) === false) {
+        $errori[] = "l'email \"{$t->email}\" non è un indirizzo valido";
+    }
+    if (!$vuoto($t->destinazione) && !$soloLettere($t->destinazione)) {
+        $errori[] = "la destinazione \"{$t->destinazione}\" contiene caratteri non ammessi (solo lettere: indica la città, non il codice aeroporto)";
+    }
+    if (!$vuoto($t->aeroportoPartenza) && !$iataValido($t->aeroportoPartenza)) {
+        $errori[] = "l'aeroporto di partenza \"{$t->aeroportoPartenza}\" non è un codice IATA di 3 lettere";
+    }
+    if (!$vuoto($t->aeroportoDestinazione) && !$iataValido($t->aeroportoDestinazione)) {
+        $errori[] = "l'aeroporto di destinazione \"{$t->aeroportoDestinazione}\" non è un codice IATA di 3 lettere";
+    }
+    if (!$vuoto($t->dataPartenza) && !$dataValida($t->dataPartenza)) {
+        $errori[] = "la data di partenza \"{$t->dataPartenza}\" non è nel formato YYYY-MM-DD";
+    }
+    if (!$vuoto($t->dataRitorno)) {
+        if (!$dataValida($t->dataRitorno)) {
+            $errori[] = "la data di ritorno \"{$t->dataRitorno}\" non è nel formato YYYY-MM-DD";
+        } elseif ($dataValida($t->dataPartenza) && trim($t->dataRitorno) < trim($t->dataPartenza)) {
+            $errori[] = "la data di ritorno precede la partenza";
+        }
+    }
+    if ($t->adulti !== null && $t->adulti < 1) {
+        $errori[] = "deve esserci almeno 1 adulto";
+    }
+    if ($t->bambini !== null && $t->bambini < 0) {
+        $errori[] = "il numero di bambini non può essere negativo";
+    }
+    if ($t->adulti !== null && $t->bambini !== null && ($t->adulti + $t->bambini) > 9) {
+        $errori[] = "i passeggeri totali non possono superare 9";
+    }
+
+    return $errori;
+};
+
+$dati = $eseguiFase(
+    ReceptionistAgent::make(),
+    TurnoReceptionist::class,
+    datiCompleti: $datiCompletiReceptionist,
+    estraiRecord: static fn(TurnoReceptionist $t): array => [
         'nome' => trim($t->nome),
         'cognome' => trim($t->cognome),
         'email' => trim($t->email),
+        'destinazione' => trim($t->destinazione),
+        'aeroporto_partenza' => strtoupper(trim($t->aeroportoPartenza)),
+        'aeroporto_destinazione' => strtoupper(trim($t->aeroportoDestinazione)),
+        'data_partenza' => trim($t->dataPartenza),
+        'data_ritorno' => $vuoto($t->dataRitorno) ? null : trim($t->dataRitorno),
+        'adulti' => $t->adulti,
+        'bambini' => $t->bambini,
     ],
+    erroriValidazione: $erroriReceptionist,
 );
 
-if ($utente === null) {
+if ($dati === null) {
     echo "Va bene, nessun dato salvato. Alla prossima!\n";
     exit(0);
 }
 
+$utente = [
+    'nome' => $dati['nome'],
+    'cognome' => $dati['cognome'],
+    'email' => $dati['email'],
+];
+// Il viaggio è collegato all'utente tramite l'email
+$viaggio = [
+    'email' => $dati['email'],
+    'destinazione' => $dati['destinazione'],
+    'aeroporto_partenza' => $dati['aeroporto_partenza'],
+    'aeroporto_destinazione' => $dati['aeroporto_destinazione'],
+    'data_partenza' => $dati['data_partenza'],
+    'data_ritorno' => $dati['data_ritorno'],
+    'adulti' => $dati['adulti'],
+    'bambini' => $dati['bambini'],
+];
+
 (new Archivio(__DIR__ . '/data/utenti.json'))->salva($utente);
+(new Archivio(__DIR__ . '/data/viaggi.json'))->salva($viaggio);
 echo $verde("Neuron: Grazie {$utente['nome']} {$utente['cognome']}, ti ringrazio per avermi dato queste informazioni.") . "\n";
-echo $grigio("(dati salvati in data/utenti.json)") . "\n\n";
+echo $grigio("(dati salvati in data/utenti.json e data/viaggi.json)") . "\n\n";
 
-// --- Fase 2: destinazione, numero di persone e periodo del viaggio ---
-
-// echo $ciano("Passiamo ora all'organizzazione del tuo viaggio.") . "\n\n";
-
-$viaggio = $eseguiFase(
-    ViaggioAgent::make(),
-    TurnoViaggio::class,
-    datiCompleti: static fn(TurnoViaggio $t): bool =>
-        $soloLettere($t->destinazione)
-        && $t->numeroPersone !== null && $t->numeroPersone >= 1
-        && $t->periodo !== null && trim($t->periodo) !== '',
-    estraiRecord: static fn(TurnoViaggio $t): array => [
-        'destinazione' => trim($t->destinazione),
-        'numero_persone' => $t->numeroPersone,
-        'periodo' => trim($t->periodo),
-    ],
-    messaggioAvvio: 'Procediamo con la raccolta dei dati del viaggio.',
-);
-
-if ($viaggio === null) {
-    echo "Va bene, nessun viaggio salvato. Alla prossima!\n";
-    exit(0);
-}
-
-// Il viaggio è collegato all'utente tramite l'email raccolta nella fase 1
-(new Archivio(__DIR__ . '/data/viaggi.json'))->salva(['email' => $utente['email'], ...$viaggio]);
-echo $verde("Neuron: Grazie {$utente['nome']}! Viaggio registrato: {$viaggio['destinazione']}, {$viaggio['numero_persone']} persone, {$viaggio['periodo']}. Buon viaggio!") . "\n";
-echo $grigio("(dati salvati in data/viaggi.json)") . "\n\n";
-
-// --- Fase 3: ricerca dei voli tramite il server MCP FlightX ---
+// --- Fase 2: ricerca dei voli tramite il server MCP FlightX ---
 
 // echo $ciano("Ora cerchiamo i voli disponibili per il tuo viaggio.") . "\n\n";
 
 $ricercaVoli = $eseguiFase(
-    VoliAgent::make($viaggio['destinazione'], $viaggio['periodo'], (int) $viaggio['numero_persone']),
+    VoliAgent::make($viaggio),
     TurnoVolo::class,
     datiCompleti: static fn(TurnoVolo $t): bool => $t->ricercaCompletata,
     estraiRecord: static fn(TurnoVolo $t): array => [],
@@ -196,7 +282,10 @@ if ($ricercaVoli === null) {
 }
 
 // Riepilogo finale dei dati raccolti nelle fasi precedenti
+$passeggeri = "{$viaggio['adulti']} " . ($viaggio['adulti'] === 1 ? 'adulto' : 'adulti')
+    . ($viaggio['bambini'] > 0 ? " e {$viaggio['bambini']} " . ($viaggio['bambini'] === 1 ? 'bambino' : 'bambini') : '');
+$dateVolo = $viaggio['data_partenza'] . ($viaggio['data_ritorno'] !== null ? " → ritorno {$viaggio['data_ritorno']}" : ', sola andata');
 echo "\n" . $verde("--- Riepilogo ---") . "\n";
 echo $ciano("Anagrafica: {$utente['nome']} {$utente['cognome']} ({$utente['email']})") . "\n";
-echo $ciano("Viaggio: {$viaggio['destinazione']}, {$viaggio['numero_persone']} persone, {$viaggio['periodo']}") . "\n";
+echo $ciano("Viaggio: {$viaggio['aeroporto_partenza']} → {$viaggio['aeroporto_destinazione']} ({$viaggio['destinazione']}), {$dateVolo}, {$passeggeri}") . "\n";
 exit(0);

@@ -4,15 +4,18 @@ declare(strict_types=1);
 
 namespace App\Neuron;
 
+use App\MCP\LineStdioTransport;
 use NeuronAI\Agent\SystemPrompt;
 use NeuronAI\MCP\McpConnector;
 
 class VoliAgent extends OpenRouterAgent
 {
+    /**
+     * @param array{destinazione: string, aeroporto_partenza: string, aeroporto_destinazione: string, data_partenza: string, data_ritorno: ?string, adulti: int, bambini: int} $viaggio
+     *        Parametri di ricerca già raccolti dal receptionist.
+     */
     public function __construct(
-        private readonly string $destinazione,
-        private readonly string $periodo,
-        private readonly int $numeroPersone,
+        private readonly array $viaggio,
     ) {
         parent::__construct();
     }
@@ -24,7 +27,7 @@ class VoliAgent extends OpenRouterAgent
     protected function tools(): array
     {
         return McpConnector::make([
-            'transport' => new \App\MCP\LineStdioTransport([
+            'transport' => new LineStdioTransport([
                 'command' => PHP_BINARY,
                 'args' => [dirname(__DIR__, 2) . '/flightx-mcp.php'],
                 'env' => [
@@ -39,30 +42,35 @@ class VoliAgent extends OpenRouterAgent
 
     protected function instructions(): string
     {
+        $tipo = $this->viaggio['data_ritorno'] !== null ? 'andata e ritorno' : 'sola andata';
+
         return (string) new SystemPrompt(
             background: [
-                "Sei Neuron, un assistente virtuale gentile e conciso.",
-                "Il tuo obiettivo è cercare i voli per il viaggio appena pianificato dall'utente.",
-                "Dati già raccolti sul viaggio: destinazione \"{$this->destinazione}\", periodo \"{$this->periodo}\", {$this->numeroPersone} persone (considera tutti i passeggeri come adulti).",
+                "Sei Neuron, un assistente virtuale gentile e conciso. L'utente ti conosce già: NON presentarti.",
+                "Il tuo obiettivo è cercare i voli per il viaggio dell'utente con i tool a disposizione.",
+                "Parametri di ricerca GIÀ RACCOLTI e confermati dall'utente: "
+                    . "{$this->viaggio['aeroporto_partenza']} → {$this->viaggio['aeroporto_destinazione']} ({$this->viaggio['destinazione']}), "
+                    . "partenza {$this->viaggio['data_partenza']}"
+                    . ($this->viaggio['data_ritorno'] !== null ? ", ritorno {$this->viaggio['data_ritorno']}" : '')
+                    . ", {$tipo}, {$this->viaggio['adulti']} adulti e {$this->viaggio['bambini']} bambini.",
                 "Parla sempre in italiano.",
             ],
             steps: [
-                "Parti dai dati del viaggio già noti e proponi i parametri di ricerca: aeroporto di partenza, aeroporto di destinazione, data di partenza, eventuale data di ritorno e numero di adulti.",
-                "Chiedi SEMPRE conferma esplicita dell'aeroporto di partenza e dell'aeroporto di destinazione, indicando i codici IATA di 3 lettere che intendi usare (es. LIN per Milano Linate).",
-                "Se il periodo noto non indica date precise, chiedi la data di partenza esatta in formato YYYY-MM-DD; chiedi se il viaggio è di sola andata o andata e ritorno (in tal caso serve anche la data di ritorno).",
-                "Se l'utente corregge un parametro, aggiorna i campi corrispondenti e chiedi di nuovo conferma di tutti i parametri.",
+                "Mostra i parametri di ricerca già raccolti e chiedi UNA conferma per procedere con la ricerca (es. \"Cerco i voli LIN → BCN del 15/09/2026, sola andata, 2 adulti e 1 bambino. Procedo?\").",
+                "Se l'utente conferma, esegui la ricerca e presenta l'elenco dei voli.",
+                "Se l'utente vuole modificare un parametro, aggiorna il campo corrispondente, richiedi conferma dei nuovi parametri e ripeti la ricerca.",
+                "Dopo aver presentato l'elenco imposta \"ricercaCompletata\" a true e chiedi se l'utente vuole verificare la disponibilità di una delle opzioni (tool seleziona_volo) oppure modificare i parametri; imposta \"confermato\" a true solo quando l'utente indica di aver terminato.",
                 "Se l'utente non vuole cercare i voli, accetta il rifiuto gentilmente e imposta \"confermato\" a true.",
-                "Dopo aver presentato l'elenco dei voli imposta \"ricercaCompletata\" a true e chiedi se l'utente vuole verificare la disponibilità di una delle opzioni (tool seleziona_volo) oppure modificare i parametri e cercare di nuovo; imposta \"confermato\" a true solo quando l'utente indica di aver terminato.",
             ],
             output: [
                 "Compila sempre il campo \"risposta\" con il messaggio da mostrare all'utente, in italiano, breve e amichevole.",
-                "Compila i campi aeroportoPartenza, aeroportoDestinazione, dataPartenza, dataRitorno e adulti appena li conosci; lasciali null finché non sono noti.",
+                "Mantieni i campi aeroportoPartenza, aeroportoDestinazione, dataPartenza, dataRitorno, adulti e bambini allineati ai parametri dell'ultima ricerca effettuata.",
                 "Non inventare MAI codici di volo, orari o prezzi: usa solo i dati restituiti dai tool.",
                 "Imposta \"ricercaCompletata\" a true SOLO dopo aver presentato l'elenco dei voli.",
                 "Imposta \"confermato\" a true SOLO quando la fase deve terminare: utente soddisfatto dopo la ricerca/selezione, oppure rifiuto.",
             ],
             toolsUsage: [
-                "Usa il tool cerca_voli SOLO dopo che l'utente ha confermato esplicitamente TUTTI i parametri di ricerca.",
+                "Usa il tool cerca_voli SOLO dopo la conferma esplicita dell'utente sui parametri di ricerca.",
                 "Presenta i risultati di cerca_voli come elenco numerato leggibile (tratta, orari, compagnia, durata, scali, prezzo): non mostrare MAI JSON grezzo né i riferimenti tecnici (item_key, option_keys).",
                 "Usa il tool seleziona_volo SOLO se l'utente sceglie esplicitamente una delle opzioni trovate, usando i riferimenti tecnici di quella opzione.",
                 "Se un tool restituisce un errore, spiegalo all'utente in parole semplici e proponi di correggere i parametri.",

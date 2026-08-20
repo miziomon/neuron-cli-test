@@ -43,6 +43,11 @@ class TurnoVolo
     public ?int $adulti = null;
 
     #[SchemaProperty(
+        description: "Numero di passeggeri bambini (2-11 anni), oppure null se non ancora noto"
+    )]
+    public ?int $bambini = null;
+
+    #[SchemaProperty(
         description: "true solo dopo aver presentato all'utente l'elenco dei voli trovati",
         required: true
     )]

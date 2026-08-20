@@ -5,6 +5,26 @@ Tutte le modifiche rilevanti a questo progetto sono documentate in questo file.
 Il formato è basato su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/)
 e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/).
 
+## [0.6.0] - 2026-08-20
+
+### Corretto
+
+- Conferma con dati non validi non più trattata come rifiuto: i campi valorizzati ma malformati (email, IATA, date, passeggeri) vengono elencati e rimandati all'agente, che chiede la correzione e una nuova conferma invece di uscire senza salvare
+- I campi opzionali restituiti dal modello come stringa vuota (es. `dataRitorno: ""` per la sola andata) sono normalizzati a `null` prima della validazione
+
+### Cambiato
+
+- **Ristrutturazione degli agenti**: `NeuronAgent` e `ViaggioAgent` unificati in `ReceptionistAgent`, che raccoglie in un'unica conversazione anagrafica, destinazione, aeroporti IATA di partenza/destinazione, data di partenza (ed eventuale ritorno), adulti e bambini
+- `VoliAgent` riceve ora tutti i parametri di ricerca già raccolti dal receptionist: chiede una sola conferma e cerca i voli
+- Il record viaggio in `data/viaggi.json` contiene i parametri di ricerca completi (`aeroporto_partenza`, `aeroporto_destinazione`, `data_partenza`, `data_ritorno`, `adulti`, `bambini`) al posto di `numero_persone` e `periodo`
+- Validazioni CLI estese: codici IATA, date `YYYY-MM-DD` (ritorno non precedente alla partenza), regole passeggeri (almeno 1 adulto, massimo 9 totali)
+- `TurnoVolo` include il numero dei bambini
+
+### Rimosso
+
+- `NeuronAgent`, `ViaggioAgent` e i DTO `TurnoAgente`/`TurnoViaggio` (sostituiti da `ReceptionistAgent`/`TurnoReceptionist`)
+- Il `periodo` a testo libero: sostituito dalle date precise di partenza e ritorno
+
 ## [0.5.0] - 2026-08-20
 
 ### Cambiato
@@ -64,6 +84,7 @@ e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/)
 - Caricamento del file `.env` con precedenza delle variabili d'ambiente reali
 - Suite di test PHPUnit con provider finto senza chiamate HTTP reali
 
+[0.6.0]: https://github.com/miziomon/neuron-cli-test/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/miziomon/neuron-cli-test/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/miziomon/neuron-cli-test/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/miziomon/neuron-cli-test/compare/v0.2.0...v0.3.0

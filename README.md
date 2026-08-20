@@ -1,17 +1,16 @@
 # Neuron CLI Test
 
-Applicazione CLI PHP didattica basata sul framework [Neuron AI](https://github.com/neuron-core/neuron-ai). Un agente conversazionale chiamato **Neuron** dialoga con l'utente in italiano in due fasi:
+Applicazione CLI PHP didattica basata sul framework [Neuron AI](https://github.com/neuron-core/neuron-ai). Due agenti conversazionali in italiano lavorano in sequenza:
 
-1. **Anagrafica** — raccoglie **nome, cognome ed email**, chiede conferma esplicita e salva in `data/utenti.json`
-2. **Viaggio** — parte solo dopo il completamento della prima fase e raccoglie **destinazione, numero di persone e periodo**, salvando in `data/viaggi.json` con l'email dell'utente come collegamento
-3. **Voli** — sulla base del viaggio raccolto, chiede conferma di aeroporti (IATA), date e passeggeri, cerca i voli tramite il **server MCP FlightX** e presenta un elenco leggibile delle opzioni disponibili
+1. **Receptionist** — un unico agente raccoglie **nome, cognome ed email**, poi **destinazione, aeroporti (IATA) di partenza e destinazione, data di partenza (ed eventuale ritorno), adulti e bambini**; chiede conferma esplicita del ricapitolo completo e salva in `data/utenti.json` e `data/viaggi.json` (collegati via email)
+2. **Voli** — riceve tutti i parametri già raccolti, chiede una sola conferma e cerca i voli tramite il **server MCP FlightX**, presentando un elenco leggibile delle opzioni disponibili
 
 ## Caratteristiche
 
 - Conversazione in italiano con system prompt strutturato (`SystemPrompt`)
-- Structured output ad ogni turno: ogni agente risponde con un oggetto tipizzato (`TurnoAgente`, `TurnoViaggio`), non con testo libero
+- Structured output ad ogni turno: ogni agente risponde con un oggetto tipizzato (`TurnoReceptionist`, `TurnoVolo`), non con testo libero
 - Conferma esplicita dei dati prima del salvataggio
-- Validazione lato CLI: nome/cognome/destinazione (solo lettere, spazi, apostrofi e trattini), email (`filter_var` con `FILTER_VALIDATE_EMAIL`), numero di persone (intero >= 1)
+- Validazione lato CLI: nome/cognome/destinazione (solo lettere, spazi, apostrofi e trattini), email (`filter_var` con `FILTER_VALIDATE_EMAIL`), aeroporti (IATA di 3 lettere), date (`YYYY-MM-DD`, ritorno non precedente alla partenza), passeggeri (almeno 1 adulto, massimo 9 totali)
 - Persistenza su file JSON (`data/utenti.json`, `data/viaggi.json`)
 - Conteggio dei token (input / output / totale) sotto ogni risposta dell'agente
 - Riepilogo finale dei dati raccolti (anagrafica + viaggio) prima dell'uscita
@@ -65,7 +64,7 @@ Il modello deve supportare lo structured output (`response_format` JSON).
 php chat.php
 ```
 
-L'agente si presenta, raccoglie nome, cognome ed email (con conferma), poi un secondo agente raccoglie destinazione, numero di persone e periodo del viaggio. I dati vengono salvati in `data/utenti.json` e `data/viaggi.json`. Per uscire manualmente: `esci`, `exit` o `quit`.
+Il receptionist si presenta e raccoglie in un'unica conversazione anagrafica, destinazione, aeroporti, date e passeggeri (con ricapitolo e conferma); poi l'agente voli cerca le opzioni disponibili. I dati vengono salvati in `data/utenti.json` e `data/viaggi.json`. Per uscire manualmente: `esci`, `exit` o `quit`.
 
 Codici di uscita:
 
@@ -86,15 +85,13 @@ I test non effettuano chiamate HTTP: usano un provider finto (`tests/FakeProvide
 ## Struttura del progetto
 
 ```
-chat.php                      # entry point: esegue le tre fasi di raccolta
+chat.php                      # entry point: fase receptionist + fase voli
 flightx-mcp.php               # server MCP stdio che espone i tool FlightX
 src/Neuron/OpenRouterAgent.php  # classe base astratta con il provider OpenRouter condiviso
-src/Neuron/NeuronAgent.php    # agente anagrafica: system prompt fase 1
-src/Neuron/TurnoAgente.php    # DTO structured output fase 1 (nome, cognome, email)
-src/Neuron/ViaggioAgent.php   # agente viaggio: system prompt fase 2
-src/Neuron/TurnoViaggio.php   # DTO structured output fase 2 (destinazione, persone, periodo)
-src/Neuron/VoliAgent.php      # agente voli: tool MCP FlightX + system prompt fase 3
-src/Neuron/TurnoVolo.php      # DTO structured output fase 3 (aeroporti, date, adulti)
+src/Neuron/ReceptionistAgent.php  # agente di raccolta unico (anagrafica + viaggio + parametri volo)
+src/Neuron/TurnoReceptionist.php  # DTO structured output della fase receptionist
+src/Neuron/VoliAgent.php      # agente voli: tool MCP FlightX + system prompt
+src/Neuron/TurnoVolo.php      # DTO structured output fase voli (aeroporti, date, passeggeri)
 src/MCP/LineStdioTransport.php  # transport MCP stdio con buffer (gestisce risposte > 4 KB)
 src/Services/FlightX/         # wrapper delle API FlightX (client, config, eccezioni)
 src/Support/Archivio.php      # persistenza su file JSON
