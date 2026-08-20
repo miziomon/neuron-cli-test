@@ -4,22 +4,10 @@ declare(strict_types=1);
 
 namespace App\Neuron;
 
-use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\SystemPrompt;
-use NeuronAI\Providers\AIProviderInterface;
-use NeuronAI\Providers\OpenAILike;
 
-class ViaggioAgent extends Agent
+class ViaggioAgent extends OpenRouterAgent
 {
-    protected function provider(): AIProviderInterface
-    {
-        return new OpenAILike(
-            baseUri: 'https://openrouter.ai/api/v1',
-            key: $_ENV['OPENROUTER_API_KEY'],
-            model: $_ENV['OPENROUTER_MODEL'],
-        );
-    }
-
     protected function instructions(): string
     {
         return (string) new SystemPrompt(

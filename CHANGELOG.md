@@ -5,6 +5,16 @@ Tutte le modifiche rilevanti a questo progetto sono documentate in questo file.
 Il formato è basato su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/)
 e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/).
 
+## [0.3.0] - 2026-08-20
+
+### Aggiunto
+
+- Riepilogo finale dei dati raccolti (anagrafica + viaggio) stampato prima dell'uscita
+
+### Cambiato
+
+- Estratta la classe base astratta `OpenRouterAgent` con il provider OpenRouter condiviso: `NeuronAgent` e `ViaggioAgent` ora definiscono solo il proprio system prompt
+
 ## [0.2.0] - 2026-08-20
 
 ### Aggiunto
@@ -35,5 +45,6 @@ e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/)
 - Caricamento del file `.env` con precedenza delle variabili d'ambiente reali
 - Suite di test PHPUnit con provider finto senza chiamate HTTP reali
 
+[0.3.0]: https://github.com/miziomon/neuron-cli-test/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/miziomon/neuron-cli-test/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/miziomon/neuron-cli-test/releases/tag/v0.1.0

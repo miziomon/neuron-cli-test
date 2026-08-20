@@ -20,9 +20,10 @@ Entrambi gli agenti usano il provider OpenRouter (compatibile OpenAI) tramite `N
 ## Struttura del codice
 
 - `chat.php` — entry point della chat interattiva. Carica manualmente il file `.env` (le variabili d'ambiente reali hanno precedenza), esegue le due fasi di raccolta tramite la closure condivisa `eseguiFase` (loop di conversazione, retry con backoff esponenziale su HTTP 429, conteggio dei token, limite di iterazioni), valida i dati e li salva. Codici di uscita: `0` successo/rifiuto/uscita volontaria, `1` errore di configurazione o di comunicazione, `2` raggiunto il numero massimo di iterazioni.
-- `src/Neuron/NeuronAgent.php` — agente della fase anagrafica: provider OpenRouter (`https://openrouter.ai/api/v1`) e system prompt in italiano costruito con `SystemPrompt` (background, steps, output).
+- `src/Neuron/OpenRouterAgent.php` — classe base astratta con il provider OpenRouter (`OpenAILike` su `https://openrouter.ai/api/v1`) condiviso dagli agenti.
+- `src/Neuron/NeuronAgent.php` — agente della fase anagrafica: system prompt in italiano costruito con `SystemPrompt` (background, steps, output).
 - `src/Neuron/TurnoAgente.php` — DTO dello structured output della fase 1 con attributi `#[SchemaProperty]`: `risposta` (string, obbligatoria), `nome`, `cognome` ed `email` (nullable), `confermato` (bool, obbligatorio).
-- `src/Neuron/ViaggioAgent.php` — agente della fase viaggio: stesso provider e struttura di `NeuronAgent`.
+- `src/Neuron/ViaggioAgent.php` — agente della fase viaggio: estende `OpenRouterAgent` e definisce il proprio system prompt.
 - `src/Neuron/TurnoViaggio.php` — DTO dello structured output della fase 2: `risposta`, `destinazione`, `numeroPersone` (?int), `periodo` (nullable), `confermato`.
 - `src/Support/Archivio.php` — persistenza minimale su file JSON: legge (`tutti()`) e accoda (`salva(array $record)`) record arricchiti con `raccolto_il`, creando la directory se mancante.
 - `tests/` — `NeuronAgentTest.php`, `ViaggioAgentTest.php`, `ArchivioTest.php` e i doppioni di test `FakeProvider.php` / `AgenteFinto.php`.

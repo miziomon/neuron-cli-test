@@ -176,4 +176,9 @@ if ($viaggio === null) {
 (new Archivio(__DIR__ . '/data/viaggi.json'))->salva(['email' => $utente['email'], ...$viaggio]);
 echo $verde("Neuron: Grazie {$utente['nome']}! Viaggio registrato: {$viaggio['destinazione']}, {$viaggio['numero_persone']} persone, {$viaggio['periodo']}. Buon viaggio!") . "\n";
 echo $grigio("(dati salvati in data/viaggi.json)") . "\n";
+
+// Riepilogo finale dei dati raccolti nelle due fasi
+echo "\n" . $verde("--- Riepilogo ---") . "\n";
+echo $ciano("Anagrafica: {$utente['nome']} {$utente['cognome']} ({$utente['email']})") . "\n";
+echo $ciano("Viaggio: {$viaggio['destinazione']}, {$viaggio['numero_persone']} persone, {$viaggio['periodo']}") . "\n";
 exit(0);

@@ -13,6 +13,7 @@ Applicazione CLI PHP didattica basata sul framework [Neuron AI](https://github.c
 - Validazione lato CLI: nome/cognome/destinazione (solo lettere, spazi, apostrofi e trattini), email (`filter_var` con `FILTER_VALIDATE_EMAIL`), numero di persone (intero >= 1)
 - Persistenza su file JSON (`data/utenti.json`, `data/viaggi.json`)
 - Conteggio dei token (input / output / totale) sotto ogni risposta dell'agente
+- Riepilogo finale dei dati raccolti (anagrafica + viaggio) prima dell'uscita
 - Limite configurabile di iterazioni con chiusura automatica; il contatore riparte da `#1` a ogni fase
 - Retry con backoff esponenziale in caso di rate limit (HTTP 429)
 - Colori ANSI (disattivabili con `NO_COLOR=1`)
@@ -78,9 +79,10 @@ I test non effettuano chiamate HTTP: usano un provider finto (`tests/FakeProvide
 
 ```
 chat.php                      # entry point: esegue le due fasi di raccolta
-src/Neuron/NeuronAgent.php    # agente anagrafica: provider OpenRouter + system prompt
+src/Neuron/OpenRouterAgent.php  # classe base astratta con il provider OpenRouter condiviso
+src/Neuron/NeuronAgent.php    # agente anagrafica: system prompt fase 1
 src/Neuron/TurnoAgente.php    # DTO structured output fase 1 (nome, cognome, email)
-src/Neuron/ViaggioAgent.php   # agente viaggio: provider OpenRouter + system prompt
+src/Neuron/ViaggioAgent.php   # agente viaggio: system prompt fase 2
 src/Neuron/TurnoViaggio.php   # DTO structured output fase 2 (destinazione, persone, periodo)
 src/Support/Archivio.php      # persistenza su file JSON
 tests/                        # suite PHPUnit
