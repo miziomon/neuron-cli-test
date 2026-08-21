@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Workflow\Nodes;
 
 use App\Neuron\TurnoReceptionist;
+use App\Support\ArchivioSqlite;
 use App\Support\Pratica;
 use App\Support\Validazione;
 use App\Workflow\Events\EventoDaValidare;
@@ -71,11 +72,22 @@ class ValidazioneNode extends Node
         ]);
         $state->set('pratica_percorso', $pratica->percorso());
 
+        // Dettaglio dei dati raccolti anche sul DB SQLite, per chat
+        $chatId = $state->get('__workflowId');
+        if (is_string($chatId)) {
+            (new ArchivioSqlite($state->get('db_dati', $this->dbDefault())))->creaPratica($chatId, $utente, $viaggio);
+        }
+
         return new EventoDatiValidati(saluto: $turno->risposta);
     }
 
     protected function dirDatiDefault(): string
     {
         return dirname(__DIR__, 3) . '/data';
+    }
+
+    protected function dbDefault(): string
+    {
+        return $this->dirDatiDefault() . '/neuron.sqlite';
     }
 }

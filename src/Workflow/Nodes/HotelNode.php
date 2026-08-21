@@ -6,6 +6,7 @@ namespace App\Workflow\Nodes;
 
 use App\Neuron\HotelAgent;
 use App\Neuron\TurnoHotel;
+use App\Support\ArchivioSqlite;
 use App\Support\Pratica;
 use App\Support\Validazione;
 use App\Workflow\Events\EventoFine;
@@ -47,6 +48,7 @@ class HotelNode extends NodoConversazionale
 
             $hotel = [
                 'descrizione' => trim($turno->hotelSelezionato),
+                'codice' => $turno->codiceHotel !== null && trim($turno->codiceHotel) !== '' ? trim($turno->codiceHotel) : null,
                 'check_in' => $turno->dataCheckIn !== null ? trim($turno->dataCheckIn) : null,
                 'check_out' => $turno->dataCheckOut !== null ? trim($turno->dataCheckOut) : null,
                 'camere' => $turno->camere ?? 1,
@@ -54,6 +56,11 @@ class HotelNode extends NodoConversazionale
             ];
             $state->set('hotel_selezionato', $hotel);
             $this->aggiornaPratica($state, ['hotel_selezionato' => $hotel]);
+
+            $chatId = $state->get('__workflowId');
+            if (is_string($chatId)) {
+                (new ArchivioSqlite($state->get('db_dati', $this->dbDefault())))->aggiornaHotel($chatId, $hotel);
+            }
         }
 
         return new EventoFine();
@@ -79,5 +86,10 @@ class HotelNode extends NodoConversazionale
         if (is_string($percorso)) {
             Pratica::apri($percorso)->aggiorna($sezioni);
         }
+    }
+
+    protected function dbDefault(): string
+    {
+        return dirname(__DIR__, 3) . '/data/neuron.sqlite';
     }
 }

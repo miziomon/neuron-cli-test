@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests;
 
+use App\Support\ArchivioSqlite;
 use App\Support\Pratica;
 use App\Workflow\Events\EventoFine;
 use App\Workflow\Events\EventoHotel;
@@ -21,7 +22,7 @@ class HotelNodeTest extends NodoTestCase
 
     protected function tearDown(): void
     {
-        foreach (glob($this->directory . '/*.json') ?: [] as $file) {
+        foreach (glob($this->directory . '/*.{json,sqlite}', GLOB_BRACE) ?: [] as $file) {
             unlink($file);
         }
         if (is_dir($this->directory)) {
@@ -38,17 +39,24 @@ class HotelNodeTest extends NodoTestCase
             'hotel_selezionato' => null,
         ]);
 
+        $viaggio = [
+            'destinazione' => 'Barcellona',
+            'aeroporto_partenza' => 'LIN',
+            'aeroporto_destinazione' => 'BCN',
+            'data_partenza' => '2026-09-15',
+            'data_ritorno' => '2026-09-20',
+            'adulti' => 2,
+            'bambini' => $bambini,
+        ];
+
+        // La riga della pratica sul DB è creata dal ValidazioneNode nel flusso reale
+        (new ArchivioSqlite($this->directory . '/neuron.sqlite'))->creaPratica('chat_test_hotel', null, $viaggio);
+
         return new WorkflowState([
-            'viaggio' => [
-                'destinazione' => 'Barcellona',
-                'aeroporto_partenza' => 'LIN',
-                'aeroporto_destinazione' => 'BCN',
-                'data_partenza' => '2026-09-15',
-                'data_ritorno' => '2026-09-20',
-                'adulti' => 2,
-                'bambini' => $bambini,
-            ],
+            'viaggio' => $viaggio,
             'pratica_percorso' => $pratica->percorso(),
+            'db_dati' => $this->directory . '/neuron.sqlite',
+            '__workflowId' => 'chat_test_hotel',
         ]);
     }
 
@@ -69,7 +77,8 @@ class HotelNodeTest extends NodoTestCase
     {
         $node = new HotelNode($this->agenteConRisposte(
             '{"risposta":"Hai scelto l\'hotel 1!","hotelRichiesto":true,"dataCheckIn":"2026-09-15",'
-            . '"dataCheckOut":"2026-09-20","camere":1,"hotelSelezionato":"Opzione 1: Hotel Sol, 4 stelle, 500 EUR","confermato":true}'
+            . '"dataCheckOut":"2026-09-20","camere":1,"hotelSelezionato":"Opzione 1: Hotel Sol, 4 stelle, 500 EUR",'
+            . '"codiceHotel":"12345","confermato":true}'
         ));
         $state = $this->stato();
 
@@ -79,12 +88,20 @@ class HotelNodeTest extends NodoTestCase
 
         $hotel = $state->get('hotel_selezionato');
         $this->assertSame('Opzione 1: Hotel Sol, 4 stelle, 500 EUR', $hotel['descrizione']);
+        $this->assertSame('12345', $hotel['codice']);
         $this->assertSame('2026-09-15', $hotel['check_in']);
         $this->assertSame('2026-09-20', $hotel['check_out']);
         $this->assertSame(1, $hotel['camere']);
 
         $dati = json_decode((string) file_get_contents($state->get('pratica_percorso')), true);
         $this->assertSame('Opzione 1: Hotel Sol, 4 stelle, 500 EUR', $dati['hotel_selezionato']['descrizione']);
+        $this->assertSame('12345', $dati['hotel_selezionato']['codice']);
+
+        // E anche la riga sul DB SQLite
+        $riga = (new ArchivioSqlite($this->directory . '/neuron.sqlite'))->pratica('chat_test_hotel');
+        $this->assertNotNull($riga);
+        $this->assertSame('12345', $riga['codice_hotel']);
+        $this->assertSame('Opzione 1: Hotel Sol, 4 stelle, 500 EUR', $riga['hotel_descrizione']);
     }
 
     public function testSelezioneConEtaErrateTornaAlLoopConErrori(): void

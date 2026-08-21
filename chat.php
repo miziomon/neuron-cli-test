@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Support\ArchivioSqlite;
 use App\Workflow\RichiestaInput;
 use App\Workflow\TravelWorkflow;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
@@ -84,6 +85,7 @@ $persistence = new FilePersistence($dirWorkflow);
 $workflowId = null;   // valorizzato al primo WorkflowInterrupt
 $ripresa = null;      // RichiestaInput con l'input dell'utente
 $contatori = [];      // turni per fase (chiave: classe del nodo)
+$archivio = null;     // ArchivioSqlite, creato al primo interrupt (serve il workflowId)
 
 while (true) {
     try {
@@ -108,6 +110,9 @@ while (true) {
         $workflowId = $interrupt->getWorkflowId();
         $nodo = $interrupt->getNode()::class;
 
+        // Archivio SQLite della conversazione (data/neuron.sqlite)
+        $archivio ??= new ArchivioSqlite(__DIR__ . '/data/neuron.sqlite');
+
         // Il contatore delle iterazioni riparte da #1 a ogni fase
         $contatori[$nodo] = ($contatori[$nodo] ?? 0) + 1;
         if ($contatori[$nodo] > $maxIterazioni) {
@@ -123,6 +128,9 @@ while (true) {
             echo $grigio("   [token: in {$usage['in']} · out {$usage['out']} · totale {$usage['tot']}]") . "\n";
         }
         echo "\n";
+
+        // Messaggio dell'agente con il dettaglio dei token
+        $archivio->registraMessaggio($workflowId, 'agente', $richiesta->getMessage(), is_array($usage) ? $usage : null);
 
         echo "Tu: ";
         while (true) {
@@ -149,6 +157,9 @@ while (true) {
 
             break;
         }
+
+        // Risposta dell'utente (i comandi locali riepilogo/esci non sono conversazione)
+        $archivio->registraMessaggio($workflowId, 'utente', $input);
 
         $ripresa = new RichiestaInput('', $input);
     }

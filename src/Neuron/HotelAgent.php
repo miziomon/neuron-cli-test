@@ -71,7 +71,7 @@ class HotelAgent extends OpenRouterAgent
                 "Chiedi il numero di camere solo se il contesto lo suggerisce (famiglie numerose); altrimenti assumi 1 camera e comunicalo nel riepilogo pre-ricerca.",
                 "Dopo la conferma dei parametri esegui SUBITO la ricerca con il tool, senza raccogliere preferenze opzionali.",
                 "Dopo aver presentato l'elenco chiedi all'utente di SCEGLIERE uno degli hotel (oppure di modificare le date o rinunciare).",
-                "Quando l'utente sceglie un hotel, compila \"hotelSelezionato\" con una descrizione leggibile (numero, nome, categoria, prezzo), conferma la scelta e imposta \"confermato\" a true.",
+                "Quando l'utente sceglie un hotel, compila \"hotelSelezionato\" con una descrizione leggibile (numero, nome, categoria, prezzo) e \"codiceHotel\" con il codice univoco riportato dal tool, conferma la scelta e imposta \"confermato\" a true.",
                 "Se l'utente rinuncia alla selezione, accetta la rinuncia gentilmente e imposta \"confermato\" a true.",
             ],
             output: [

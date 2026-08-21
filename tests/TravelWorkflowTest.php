@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests;
 
+use App\Support\ArchivioSqlite;
 use App\Workflow\Nodes\ConsulenteNode;
 use App\Workflow\Nodes\HotelNode;
 use App\Workflow\Nodes\PersistenzaNode;
@@ -34,7 +35,7 @@ class TravelWorkflowTest extends NodoTestCase
 
     protected function tearDown(): void
     {
-        foreach (glob($this->directory . '/*.json') ?: [] as $file) {
+        foreach (glob($this->directory . '/*.{json,sqlite}', GLOB_BRACE) ?: [] as $file) {
             unlink($file);
         }
         if (is_dir($this->directory)) {
@@ -77,7 +78,7 @@ class TravelWorkflowTest extends NodoTestCase
             new VoliNode($this->agenteConRisposte(
                 '{"risposta":"Ecco i voli: 1) ... 2) ...","ricercaCompletata":true,"confermato":false}',
                 '{"risposta":"Hai scelto il volo 2!","ricercaCompletata":true,'
-                . '"voloSelezionato":"Opzione 2: MXP-NRT, ANA, 950 EUR","confermato":true}',
+                . '"voloSelezionato":"Opzione 2: MXP-NRT, ANA, 950 EUR","codiceVolo":"NH206","confermato":true}',
             )),
             new HotelNode($this->agenteConRisposte(
                 '{"risposta":"Ti serve anche un hotel?","confermato":false}',
@@ -86,7 +87,10 @@ class TravelWorkflowTest extends NodoTestCase
             new PersistenzaNode(),
         ];
 
-        $state = new WorkflowState(['dir_dati' => $this->directory]);
+        $state = new WorkflowState([
+            'dir_dati' => $this->directory,
+            'db_dati' => $this->directory . '/neuron.sqlite',
+        ]);
 
         // 1. Avvio: il consulente saluta e il workflow si interrompe
         [$finale, $interrupt, $id] = $this->esegui(null, null, $nodi, $state);
@@ -132,6 +136,16 @@ class TravelWorkflowTest extends NodoTestCase
         $dati = json_decode((string) file_get_contents($finale->get('pratica_percorso')), true);
         $this->assertNull($dati['utente']);
         $this->assertSame('Opzione 2: MXP-NRT, ANA, 950 EUR', $dati['volo_selezionato']['descrizione']);
+        $this->assertSame('NH206', $dati['volo_selezionato']['codice']);
+
+        // E il dettaglio completo è sulla tabella pratiche del DB SQLite
+        // (i messaggi della chat sono registrati dal ciclo CLI, non dal workflow)
+        $riga = (new ArchivioSqlite($this->directory . '/neuron.sqlite'))->pratica($id);
+        $this->assertNotNull($riga);
+        $this->assertSame('Tokyo', $riga['destinazione']);
+        $this->assertSame('NH206', $riga['codice_volo']);
+        $this->assertSame('Opzione 2: MXP-NRT, ANA, 950 EUR', $riga['volo_descrizione']);
+        $this->assertNull($riga['codice_hotel']);
     }
 
     public function testRifiutoAllaRaccoltaDatiChiudeSenzaPratica(): void

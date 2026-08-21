@@ -40,21 +40,22 @@ Gli agenti usano il provider OpenRouter (compatibile OpenAI) tramite `NeuronAI\P
 - `src/Neuron/OpenRouterAgent.php` — classe base astratta con il provider OpenRouter (`OpenAILike` su `https://openrouter.ai/api/v1`) condiviso dagli agenti.
 - `src/Neuron/ConsulenteAgent.php` + `TurnoConsulente.php` — agente consulente di viaggi (nessun tool) e suo DTO: `risposta`, `prontoAPrenotare` (bool), suggerimenti nullable (`destinazioneSuggerita`, `aeroportoPartenzaSuggerito`, `aeroportoDestinazioneSuggerito`, `dataPartenzaSuggerita`, `dataRitornoSuggerita`, `note`).
 - `src/Neuron/ReceptionistAgent.php` + `TurnoReceptionist.php` — agente di raccolta (anagrafica opzionale, suggerimenti del consulente come default) e suo DTO: `risposta`, `nome`, `cognome`, `email`, `destinazione`, `aeroportoPartenza`, `aeroportoDestinazione`, `dataPartenza`, `dataRitorno`, `adulti`, `bambini` (nullable), `confermato` (bool, obbligatorio).
-- `src/Neuron/VoliAgent.php` + `TurnoVolo.php` — agente voli con tool MCP FlightX e suo DTO (`risposta`, parametri ricerca, `ricercaCompletata`, `voloSelezionato`, `confermato`).
-- `src/Neuron/HotelAgent.php` + `TurnoHotel.php` — agente hotel con tool MCP Hotelbeds e suo DTO (`risposta`, `hotelRichiesto`, `dataCheckIn`, `dataCheckOut`, `camere`, `etaBambini` CSV, `hotelSelezionato`, `confermato`).
+- `src/Neuron/VoliAgent.php` + `TurnoVolo.php` — agente voli con tool MCP FlightX e suo DTO (`risposta`, parametri ricerca, `ricercaCompletata`, `voloSelezionato`, `codiceVolo`, `confermato`).
+- `src/Neuron/HotelAgent.php` + `TurnoHotel.php` — agente hotel con tool MCP Hotelbeds e suo DTO (`risposta`, `hotelRichiesto`, `dataCheckIn`, `dataCheckOut`, `camere`, `etaBambini` CSV, `hotelSelezionato`, `codiceHotel`, `confermato`).
 - `flightx-mcp.php` — server MCP su stdio (JSON-RPC 2.0 newline-delimited) con il tool `cerca_voli`; risponde SOLO su STDOUT, diagnostica su STDERR. Credenziali `FLIGHTX_*` passate dal connettore. Max 5 opzioni, prezzi in EUR, timestamp di recupero.
 - `hotelbeds-mcp.php` — server MCP su stdio con il tool `cerca_hotel` (geocoding Nominatim + disponibilità Hotelbeds, raggio 20 km, max 5 opzioni). Credenziali `HOTELBEDS_*` e `NOMINATIM_*` passate dal connettore.
 - `src/MCP/LineStdioTransport.php` — transport MCP stdio che accumula la risposta finché non è JSON completo (lo `StdioTransport` di Neuron fallisce con payload oltre 4 KB).
 - `src/Services/FlightX/` — wrapper delle API FlightX (`FlightXClient`, `FlightXConfig`, gerarchia `Exceptions`): stateful (token JWT + ultima ricerca), validazione locale IATA/date/passeggeri, layer HTTP Guzzle, password in chiaro oppure pre-hashata (`passwordMd5`).
 - `src/Services/Hotelbeds/` — wrapper delle API Hotelbeds (`HotelbedsClient`, `HotelbedsConfig`, gerarchia `Exceptions`): stateless (firma `X-Signature` = sha256(apiKey + secret + timestamp) ricalcolata a ogni richiesta), 4 varianti di ricerca disponibilità + `checkRates()`, validazioni locali (date, coordinate, occupazioni, età bambini 0-17), layer HTTP Guzzle. Sola lettura: nessuna prenotazione.
 - `src/Services/Geocoding/` — wrapper dell'API Nominatim/OpenStreetMap (`NominatimClient`, `NominatimConfig`, gerarchia `Exceptions`): `geocode()`/`search()` con coordinate normalizzate a float, throttle di processo (1 richiesta/secondo, `$sleeper` iniettabile nei test), `userAgent` obbligatorio per policy d'uso.
-- `src/Support/Pratica.php` — persistenza della pratica: un file `data/pratica_YYYYmmdd_His.json` creato dal ValidazioneNode e aggiornato (`aggiorna()`) a ogni selezione (volo, hotel); `apri()` riapre un file esistente (dopo un resume). I file esistenti non vengono mai eliminati. Struttura: `utente` (nullable), `viaggio`, `volo_selezionato`, `hotel_selezionato`, `raccolto_il`.
+- `src/Support/Pratica.php` — persistenza della pratica: un file `data/pratica_YYYYmmdd_His.json` creato dal ValidazioneNode e aggiornato (`aggiorna()`) a ogni selezione (volo, hotel); `apri()` riapre un file esistente (dopo un resume). I file esistenti non vengono mai eliminati. Struttura: `utente` (nullable), `viaggio`, `volo_selezionato` (con `codice`), `hotel_selezionato` (con `codice`), `raccolto_il`.
+- `src/Support/ArchivioSqlite.php` — persistenza SQLite (`data/neuron.sqlite`): tabella `chat` (ogni messaggio utente/agente con `chat_id` = workflowId, ruolo, testo, token input/output/totali, timestamp) e tabella `pratiche` (dettaglio dei dati raccolti per chat, con `codice_volo` e `codice_hotel`). I nodi scrivono la pratica; il ciclo CLI registra i messaggi.
 - `src/Support/StoriaChat.php` — chat history serializzabile in JSON (`daJson`/`daChatHistory`) per attraversare le interruzioni del workflow.
 - `src/Support/Validazione.php` — regole di validazione condivise: campi viaggio (obbligatori), anagrafica (opzionale, solo sanificata), dati hotel, `parseEtaBambini`.
 - `src/Support/LlmRetry.php` — retry con backoff esponenziale su HTTP 429 (4 tentativi, poi exit 1), usato dai nodi conversazionali.
 - `src/Support/Archivio.php` — persistenza minimale su file JSON (storico, non più usata; resta coperta dai test).
-- `tests/` — oltre ai test preesistenti: `NodoTestCase.php` (base con factory di agenti finti a risposte sequenziate), `ConsulenteNodeTest`, `ReceptionistNodeTest`, `ValidazioneNodeTest`, `VoliNodeTest`, `HotelNodeTest`, `TravelWorkflowTest` (end-to-end con interrupt/resume), `ValidazioneTest`, `StoriaChatTest`, `TurnoConsulenteTest`, `PraticaTest` (con `apri`).
-- `data/pratica_*.json` — pratiche raccolte a runtime (git-ignored); `data/workflow/` — stato dei workflow interrotti (git-ignored); `data/utenti.json` e `data/viaggi.json` restano come storico non più scritto.
+- `tests/` — oltre ai test preesistenti: `NodoTestCase.php` (base con factory di agenti finti a risposte sequenziate), `ConsulenteNodeTest`, `ReceptionistNodeTest`, `ValidazioneNodeTest`, `VoliNodeTest`, `HotelNodeTest`, `TravelWorkflowTest` (end-to-end con interrupt/resume), `ValidazioneTest`, `StoriaChatTest`, `TurnoConsulenteTest`, `PraticaTest` (con `apri`), `ArchivioSqliteTest` (chat con ruoli/token e pratiche con codici, filtrate per `chat_id`).
+- `data/pratica_*.json` — pratiche raccolte a runtime (git-ignored); `data/neuron.sqlite` — archivio chat e pratiche (git-ignored); `data/workflow/` — stato dei workflow interrotti (git-ignored); `data/utenti.json` e `data/viaggi.json` restano come storico non più scritto.
 
 ## Build e test
 
@@ -63,7 +64,7 @@ Non esiste una fase di build; Composer gestisce tutto.
 ```bash
 composer install        # installa le dipendenze
 php chat.php            # avvia la chat interattiva (richiede .env)
-vendor/bin/phpunit      # esegue la suite di test (82 test, configurazione in phpunit.xml)
+vendor/bin/phpunit      # esegue la suite di test (86 test, configurazione in phpunit.xml)
 ```
 
 ## Configurazione richiesta
@@ -104,12 +105,12 @@ Senza `OPENROUTER_API_KEY` e `OPENROUTER_MODEL` lo script esce con errore; senza
 - I nodi conversazionali accettano una factory di agenti nel costruttore: `tests/NodoTestCase.php` fornisce `agenteConRisposte(...)` (risposte JSON in sequenza) e `invoca()` (esegue il nodo catturando il `WorkflowInterrupt`, o simula il resume passando una `RichiestaInput`).
 - `tests/TravelWorkflowTest.php` guida l'intero workflow attraverso interrupt/resume con `InMemoryPersistence` e nodi finti: copre il flusso completo (consulenza → prenotazione → volo → rinuncia hotel) e il rifiuto senza salvataggio.
 - I test FlightX/Hotelbeds/Geocoding sono offline: `FlightXClientTest`, `HotelbedsClientTest` e `NominatimClientTest` coprono solo le validazioni locali; `FlightXMcpServerTest` e `HotelbedsMcpServerTest` avviano i server MCP come processi e verificano handshake e `tools/list` senza mai invocare i tool.
-- I test di persistenza (`ArchivioTest`, `PraticaTest`) e dei nodi che scrivono pratiche usano file temporanei in `sys_get_temp_dir()` con pulizia in `tearDown()`: mai toccare i file in `data/` nei test.
+- I test di persistenza (`ArchivioTest`, `PraticaTest`, `ArchivioSqliteTest`) e dei nodi che scrivono pratiche usano file temporanei in `sys_get_temp_dir()` con pulizia in `tearDown()`: mai toccare i file in `data/` nei test. I nodi leggono il percorso del DB dallo stato (`db_dati`) e la directory delle pratiche da `dir_dati`.
 
 ## Considerazioni di sicurezza
 
 - `.env` contiene la chiave API OpenRouter e le credenziali FlightX/Hotelbeds ed è escluso da git (`.gitignore` copre `/vendor/`, `.env`, `/data/`): non committarlo mai e non leggerne il contenuto per esporlo.
 - Le credenziali FlightX e Hotelbeds passano ai server MCP solo come variabili d'ambiente del processo figlio; i wrapper le oscurano nei log (`redact()`). Il `secret` Hotelbeds non è mai inviato in rete: serve solo a calcolare la firma `X-Signature`.
 - I wrapper FlightX e Hotelbeds sono di sola consultazione: non espongono prenotazione (`bookItem`/`POST /bookings`) né emissione biglietti (`issueTickets`); la selezione di volo e hotel è solo registrata nella pratica, senza operazioni verso i fornitori.
-- I dati raccolti (anagrafiche opzionali, viaggi e selezioni degli utenti) sono dati personali salvati in chiaro in `data/pratica_*.json`, git-ignored. Lo stato dei workflow in `data/workflow/` può contenere la chat history serializzata: anch'esso git-ignored.
+- I dati raccolti (anagrafiche opzionali, viaggi e selezioni degli utenti) sono dati personali salvati in chiaro in `data/pratica_*.json` e in `data/neuron.sqlite` (che contiene anche l'intera conversazione), entrambi git-ignored. Lo stato dei workflow in `data/workflow/` può contenere la chat history serializzata: anch'esso git-ignored.
 - La validazione accetta solo lettere, spazi, apostrofi e trattini (regex Unicode `/^[\p{L}][\p{L}\s\'-]*$/u`) per nome, cognome e destinazione; l'email è validata con `filter_var(..., FILTER_VALIDATE_EMAIL)`; gli aeroporti devono essere codici IATA di 3 lettere; le date devono essere `YYYY-MM-DD` valide (il ritorno non può precedere la partenza; il check-out hotel deve essere successivo al check-in); i passeggeri devono includere almeno 1 adulto e non superare 9 in totale; le età dei bambini per l'hotel devono essere tante quanti sono i bambini (0-17). Il salvataggio avviene solo a validazione superata.

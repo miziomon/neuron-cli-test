@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests;
 
+use App\Support\ArchivioSqlite;
 use App\Support\Pratica;
 use App\Workflow\Events\EventoDatiValidati;
 use App\Workflow\Events\EventoHotel;
@@ -23,7 +24,7 @@ class VoliNodeTest extends NodoTestCase
 
     protected function tearDown(): void
     {
-        foreach (glob($this->directory . '/*.json') ?: [] as $file) {
+        foreach (glob($this->directory . '/*.{json,sqlite}', GLOB_BRACE) ?: [] as $file) {
             unlink($file);
         }
         if (is_dir($this->directory)) {
@@ -40,17 +41,24 @@ class VoliNodeTest extends NodoTestCase
             'hotel_selezionato' => null,
         ]);
 
+        $viaggio = [
+            'destinazione' => 'Barcellona',
+            'aeroporto_partenza' => 'LIN',
+            'aeroporto_destinazione' => 'BCN',
+            'data_partenza' => '2026-09-15',
+            'data_ritorno' => null,
+            'adulti' => 2,
+            'bambini' => 0,
+        ];
+
+        // La riga della pratica sul DB è creata dal ValidazioneNode nel flusso reale
+        (new ArchivioSqlite($this->directory . '/neuron.sqlite'))->creaPratica('chat_test_voli', null, $viaggio);
+
         return new WorkflowState([
-            'viaggio' => [
-                'destinazione' => 'Barcellona',
-                'aeroporto_partenza' => 'LIN',
-                'aeroporto_destinazione' => 'BCN',
-                'data_partenza' => '2026-09-15',
-                'data_ritorno' => null,
-                'adulti' => 2,
-                'bambini' => 0,
-            ],
+            'viaggio' => $viaggio,
             'pratica_percorso' => $pratica->percorso(),
+            'db_dati' => $this->directory . '/neuron.sqlite',
+            '__workflowId' => 'chat_test_voli',
         ]);
     }
 
@@ -58,7 +66,7 @@ class VoliNodeTest extends NodoTestCase
     {
         $node = new VoliNode($this->agenteConRisposte(
             '{"risposta":"Hai scelto il volo 1!","ricercaCompletata":true,'
-            . '"voloSelezionato":"Opzione 1: LIN-BCN 08:00, Vueling, 120 EUR","confermato":true}'
+            . '"voloSelezionato":"Opzione 1: LIN-BCN 08:00, Vueling, 120 EUR","codiceVolo":"VY1234","confermato":true}'
         ));
         $state = $this->stato();
 
@@ -69,11 +77,19 @@ class VoliNodeTest extends NodoTestCase
 
         $volo = $state->get('volo_selezionato');
         $this->assertSame('Opzione 1: LIN-BCN 08:00, Vueling, 120 EUR', $volo['descrizione']);
+        $this->assertSame('VY1234', $volo['codice']);
         $this->assertArrayHasKey('selezionato_il', $volo);
 
         // La pratica su disco è stata aggiornata
         $dati = json_decode((string) file_get_contents($state->get('pratica_percorso')), true);
         $this->assertSame('Opzione 1: LIN-BCN 08:00, Vueling, 120 EUR', $dati['volo_selezionato']['descrizione']);
+        $this->assertSame('VY1234', $dati['volo_selezionato']['codice']);
+
+        // E anche la riga sul DB SQLite
+        $riga = (new ArchivioSqlite($this->directory . '/neuron.sqlite'))->pratica('chat_test_voli');
+        $this->assertNotNull($riga);
+        $this->assertSame('VY1234', $riga['codice_volo']);
+        $this->assertSame('Opzione 1: LIN-BCN 08:00, Vueling, 120 EUR', $riga['volo_descrizione']);
     }
 
     public function testTurnoNonConfermatoInterrompeERipresaRiportaInput(): void

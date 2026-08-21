@@ -6,6 +6,7 @@ namespace App\Workflow\Nodes;
 
 use App\Neuron\TurnoVolo;
 use App\Neuron\VoliAgent;
+use App\Support\ArchivioSqlite;
 use App\Support\Pratica;
 use App\Workflow\Events\EventoDatiValidati;
 use App\Workflow\Events\EventoHotel;
@@ -45,10 +46,17 @@ class VoliNode extends NodoConversazionale
         if ($turno->voloSelezionato !== null && trim($turno->voloSelezionato) !== '') {
             $volo = [
                 'descrizione' => trim($turno->voloSelezionato),
+                'codice' => $turno->codiceVolo !== null && trim($turno->codiceVolo) !== '' ? trim($turno->codiceVolo) : null,
                 'selezionato_il' => date(DATE_ATOM),
             ];
             $state->set('volo_selezionato', $volo);
             $this->aggiornaPratica($state, ['volo_selezionato' => $volo]);
+
+            $chatId = $state->get('__workflowId');
+            if (is_string($chatId)) {
+                (new ArchivioSqlite($state->get('db_dati', $this->dbDefault())))
+                    ->aggiornaVolo($chatId, $volo['descrizione'], $volo['codice']);
+            }
         }
 
         return new EventoHotel(saluto: $turno->risposta);
@@ -63,5 +71,10 @@ class VoliNode extends NodoConversazionale
         if (is_string($percorso)) {
             Pratica::apri($percorso)->aggiorna($sezioni);
         }
+    }
+
+    protected function dbDefault(): string
+    {
+        return dirname(__DIR__, 3) . '/data/neuron.sqlite';
     }
 }

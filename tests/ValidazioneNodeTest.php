@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests;
 
 use App\Neuron\TurnoReceptionist;
+use App\Support\ArchivioSqlite;
 use App\Workflow\Events\EventoDaValidare;
 use App\Workflow\Events\EventoDatiValidati;
 use App\Workflow\Events\EventoFine;
@@ -24,7 +25,7 @@ class ValidazioneNodeTest extends TestCase
 
     protected function tearDown(): void
     {
-        foreach (glob($this->directory . '/*.json') ?: [] as $file) {
+        foreach (glob($this->directory . '/*.{json,sqlite}', GLOB_BRACE) ?: [] as $file) {
             unlink($file);
         }
         if (is_dir($this->directory)) {
@@ -37,6 +38,8 @@ class ValidazioneNodeTest extends TestCase
         return new WorkflowState([
             'turno_receptionist' => $turno,
             'dir_dati' => $this->directory,
+            'db_dati' => $this->directory . '/neuron.sqlite',
+            '__workflowId' => 'chat_test_validazione',
         ]);
     }
 
@@ -82,6 +85,13 @@ class ValidazioneNodeTest extends TestCase
         $dati = json_decode((string) file_get_contents($percorso), true);
         $this->assertNull($dati['utente']);
         $this->assertSame('Barcellona', $dati['viaggio']['destinazione']);
+
+        // E anche sul DB SQLite, per chat
+        $riga = (new ArchivioSqlite($this->directory . '/neuron.sqlite'))->pratica('chat_test_validazione');
+        $this->assertNotNull($riga);
+        $this->assertNull($riga['nome']);
+        $this->assertSame('Barcellona', $riga['destinazione']);
+        $this->assertSame('LIN', $riga['aeroporto_partenza']);
     }
 
     public function testDatiValidiConAnagrafica(): void

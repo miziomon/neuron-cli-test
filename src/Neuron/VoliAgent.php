@@ -62,7 +62,7 @@ class VoliAgent extends OpenRouterAgent
                 "Se l'utente conferma, esegui SUBITO la ricerca: fornisci rapidamente un risultato utile, senza raccogliere preferenze opzionali prima della ricerca.",
                 "Se l'utente vuole modificare un parametro obbligatorio, aggiorna il campo corrispondente, richiedi conferma dei nuovi parametri con una sola domanda sintetica e ripeti la ricerca.",
                 "Dopo aver presentato l'elenco imposta \"ricercaCompletata\" a true e chiedi all'utente di SCEGLIERE una delle opzioni indicate (oppure di modificare i parametri di ricerca).",
-                "Quando l'utente sceglie un'opzione, compila \"voloSelezionato\" con una descrizione leggibile dell'opzione scelta (numero, tratta, orari, compagnia, prezzo), conferma la scelta all'utente e imposta \"confermato\" a true.",
+                "Quando l'utente sceglie un'opzione, compila \"voloSelezionato\" con una descrizione leggibile dell'opzione scelta (numero, tratta, orari, compagnia, prezzo) e \"codiceVolo\" con il numero di volo o identificativo univoco riportato dal tool; conferma la scelta all'utente e imposta \"confermato\" a true.",
                 "Se l'utente non vuole cercare i voli o non vuole scegliere nessuna opzione, accetta il rifiuto gentilmente e imposta \"confermato\" a true.",
             ],
             output: [

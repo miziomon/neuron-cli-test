@@ -5,6 +5,20 @@ Tutte le modifiche rilevanti a questo progetto sono documentate in questo file.
 Il formato è basato su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/)
 e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/).
 
+## [0.10.0] - 2026-08-21
+
+### Aggiunto
+
+- **Persistenza SQLite** (`src/Support/ArchivioSqlite.php`, file `data/neuron.sqlite`, git-ignored): tabella `chat` con ogni messaggio utente/agente della conversazione (`chat_id` = workflowId, ruolo, testo, token input/output/totali del turno, timestamp) e tabella `pratiche` con il dettaglio dei dati raccolti per chat (anagrafica opzionale, viaggio, selezioni)
+- **Codici univoci delle selezioni**: `codiceVolo` in `TurnoVolo` (numero di volo dal tool FlightX) e `codiceHotel` in `TurnoHotel` (codice univoco Hotelbeds); salvati nella pratica JSON (`volo_selezionato.codice`, `hotel_selezionato.codice`) e nelle colonne `codice_volo`/`codice_hotel` del DB
+- Il formatter del server MCP Hotelbeds mostra il codice univoco dell'hotel in ogni opzione
+- Test `ArchivioSqliteTest` (ruoli, token, filtro per chat, ciclo pratica con codici) e asserzioni sul DB nei test dei nodi e del workflow end-to-end (86 test, 312 asserzioni)
+
+### Cambiato
+
+- Il ciclo CLI di `chat.php` registra ogni messaggio visibile della conversazione nella tabella `chat` (i comandi locali `riepilogo`/`esci` non sono registrati)
+- `ValidazioneNode`, `VoliNode` e `HotelNode` scrivono/aggiornano la riga della pratica sul DB oltre al file JSON (percorso DB sovrascrivibile via stato `db_dati`, usato dai test)
+
 ## [0.9.0] - 2026-08-21
 
 ### Aggiunto
@@ -128,6 +142,7 @@ e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/)
 - Caricamento del file `.env` con precedenza delle variabili d'ambiente reali
 - Suite di test PHPUnit con provider finto senza chiamate HTTP reali
 
+[0.10.0]: https://github.com/miziomon/neuron-cli-test/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/miziomon/neuron-cli-test/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/miziomon/neuron-cli-test/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/miziomon/neuron-cli-test/compare/v0.6.0...v0.7.0

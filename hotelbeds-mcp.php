@@ -91,6 +91,7 @@ $formattaHotel = static function (array $risultato, string $localita) use ($cate
         $hotel = (array) $hotel;
         $nome = (string) ($hotel['name'] ?? '(nome non disponibile)');
         $stelle = $categoria(isset($hotel['categoryCode']) ? (string) $hotel['categoryCode'] : null);
+        $codice = isset($hotel['code']) ? (string) $hotel['code'] : null;
 
         // Prezzo minimo fra le tariffe delle camere (gli importi HBX sono stringhe)
         $prezzoMin = null;
@@ -111,6 +112,7 @@ $formattaHotel = static function (array $risultato, string $localita) use ($cate
 
         $dettagli = array_filter([
             $stelle !== '' ? $stelle : null,
+            $codice !== null ? "codice {$codice}" : null,
             $prezzoMin !== null
                 ? 'da ' . number_format($prezzoMin, 2, ',', '') . " {$valuta} per l'intero soggiorno"
                 : 'prezzo n/d',

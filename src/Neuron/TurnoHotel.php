@@ -48,6 +48,11 @@ class TurnoHotel
     public ?string $hotelSelezionato = null;
 
     #[SchemaProperty(
+        description: "Codice univoco dell'hotel scelto, come riportato dal tool (es. \"12345\"), oppure null se non disponibile o se l'utente non ha scelto"
+    )]
+    public ?string $codiceHotel = null;
+
+    #[SchemaProperty(
         description: "true quando la fase deve terminare: l'utente ha scelto un hotel, ha rifiutato la ricerca/selezione, oppure non vuole alcun hotel",
         required: true
     )]

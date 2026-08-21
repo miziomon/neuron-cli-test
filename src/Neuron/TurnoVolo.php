@@ -59,6 +59,11 @@ class TurnoVolo
     public ?string $voloSelezionato = null;
 
     #[SchemaProperty(
+        description: "Numero di volo o identificativo univoco dell'opzione scelta, come riportato dal tool (es. \"VY1234\"), oppure null se non disponibile o se l'utente non ha scelto"
+    )]
+    public ?string $codiceVolo = null;
+
+    #[SchemaProperty(
         description: "true quando la fase deve terminare: l'utente ha scelto un volo, oppure ha rifiutato la ricerca o la selezione",
         required: true
     )]
