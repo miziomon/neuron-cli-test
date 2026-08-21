@@ -51,6 +51,23 @@ class Pratica
     }
 
     /**
+     * Riapre una pratica esistente dal suo file JSON (es. dopo un resume del workflow).
+     */
+    public static function apri(string $percorso): self
+    {
+        if (!is_file($percorso)) {
+            throw new RuntimeException("Pratica non trovata: {$percorso}");
+        }
+
+        $dati = json_decode((string) file_get_contents($percorso), true);
+        if (!is_array($dati)) {
+            throw new RuntimeException("Pratica non leggibile: {$percorso}");
+        }
+
+        return new self($percorso, $dati);
+    }
+
+    /**
      * Aggiunge o aggiorna sezioni della pratica (es. volo_selezionato,
      * hotel_selezionato) e riscrive il file.
      *

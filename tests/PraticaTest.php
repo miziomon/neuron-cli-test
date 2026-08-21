@@ -63,4 +63,26 @@ class PraticaTest extends TestCase
         // Lo stato in memoria riflette il contenuto del file
         $this->assertSame($dati, $pratica->dati());
     }
+
+    public function testApriRiapreUnaPraticaEsistente(): void
+    {
+        $pratica = Pratica::crea($this->directory, [
+            'utente' => ['nome' => 'Mario'],
+            'volo_selezionato' => null,
+        ]);
+
+        $riaperta = Pratica::apri($pratica->percorso());
+        $riaperta->aggiorna(['volo_selezionato' => ['descrizione' => '1) LIN → BCN']]);
+
+        $dati = json_decode((string) file_get_contents($pratica->percorso()), true);
+        $this->assertSame('Mario', $dati['utente']['nome']);
+        $this->assertSame('1) LIN → BCN', $dati['volo_selezionato']['descrizione']);
+    }
+
+    public function testApriConFileInesistenteLanciaEccezione(): void
+    {
+        $this->expectException(\RuntimeException::class);
+
+        Pratica::apri($this->directory . '/non_esiste.json');
+    }
 }

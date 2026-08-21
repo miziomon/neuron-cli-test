@@ -5,6 +5,24 @@ Tutte le modifiche rilevanti a questo progetto sono documentate in questo file.
 Il formato è basato su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/)
 e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/).
 
+## [0.9.0] - 2026-08-21
+
+### Aggiunto
+
+- **Migrazione a Workflow event-driven nativo di Neuron** (`src/Workflow/`): le fasi sono nodi (`ConsulenteNode`, `ReceptionistNode`, `ValidazioneNode`, `VoliNode`, `HotelNode`, `PersistenzaNode`) collegati da eventi tipizzati in `src/Workflow/Events/`; la conversazione avviene tramite `WorkflowInterrupt` con la richiesta `RichiestaInput` (human-in-the-loop) e persistenza dello stato su disco (`FilePersistence` in `data/workflow/`)
+- **Fase iniziale di consulenza viaggi** (`ConsulenteAgent` + DTO `TurnoConsulente`): risponde a domande aperte e consequenziali con la sola conoscenza del modello (nessun tool MCP); quando l'utente è pronto a prenotare, i suggerimenti emersi (destinazione, aeroporti IATA, date) vengono proposti come default al receptionist
+- `src/Support/StoriaChat.php`: chat history degli agenti serializzata in JSON nello `WorkflowState` e ripristinata a ogni turno (gli agenti non sono serializzabili: il provider HTTP contiene closure)
+- `src/Support/Validazione.php`: regole di validazione condivise dai nodi (viaggio, hotel, età bambini, anagrafica sanificata)
+- `src/Support/LlmRetry.php`: retry con backoff esponenziale su HTTP 429 condiviso dai nodi
+- `Pratica::apri()`: riapre una pratica esistente per aggiornarla dopo un resume del workflow
+- Test: nodi isolati con factory di agenti finti a risposte sequenziate (`tests/NodoTestCase.php`), validazione, round-trip della history, workflow end-to-end guidato da interrupt/resume con `InMemoryPersistence` (82 test, 261 asserzioni)
+
+### Cambiato
+
+- **Anagrafica non più obbligatoria**: nome, cognome ed email non bloccano la prenotazione; se forniti vengono salvati, altrimenti la pratica ha `utente = null`; la validazione riguarda solo i dati del viaggio
+- `chat.php` riscritto come runner del workflow (`run()` → `WorkflowInterrupt` → input utente → `resume()`); i comandi `riepilogo`/`servizi` ed `esci` restano locali al CLI e non consumano turni LLM
+- La pratica JSON è creata alla validazione dei dati del viaggio (invece che subito dopo il receptionist) e aggiornata a ogni selezione
+
 ## [0.8.0] - 2026-08-21
 
 ### Aggiunto
@@ -110,6 +128,7 @@ e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/)
 - Caricamento del file `.env` con precedenza delle variabili d'ambiente reali
 - Suite di test PHPUnit con provider finto senza chiamate HTTP reali
 
+[0.9.0]: https://github.com/miziomon/neuron-cli-test/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/miziomon/neuron-cli-test/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/miziomon/neuron-cli-test/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/miziomon/neuron-cli-test/compare/v0.5.0...v0.6.0
