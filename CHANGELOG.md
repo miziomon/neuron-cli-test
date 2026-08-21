@@ -5,6 +5,15 @@ Tutte le modifiche rilevanti a questo progetto sono documentate in questo file.
 Il formato è basato su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/)
 e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/).
 
+## [0.7.0] - 2026-08-21
+
+### Cambiato
+
+- System prompt dei due agenti potenziati: anno corrente iniettato via `date('Y')` (giorno+mese senza anno → anno corrente senza chiedere), risposta esatta per richieste fuori ambito ("Posso aiutarti solo con domande relative a viaggi e spostamenti.")
+- Receptionist: risolve autonomamente città → codici IATA senza domanda dedicata (conferma nel ricapitolo), propone il default passeggeri (2 adulti, 0 bambini), assume sola andata se il ritorno non è menzionato
+- VoliAgent: elenco di max 5 opzioni con etichette "Più economico"/"Più veloce", raccomandazione in max 2 frasi, sezione "Punti di forza della destinazione" (3-5 punti, distinta dai dati verificati), avviso che i prezzi possono variare fino alla prenotazione, regole anti prompt-injection sull'output dei tool, divieto di prenotazioni e di raccolta dati di pagamento/documenti, disclaimer su visti e frontiere
+- Il formatter del server MCP restituisce 5 opzioni (invece di 10) con timestamp di recupero dati
+
 ## [0.6.0] - 2026-08-20
 
 ### Corretto
@@ -84,6 +93,7 @@ e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/)
 - Caricamento del file `.env` con precedenza delle variabili d'ambiente reali
 - Suite di test PHPUnit con provider finto senza chiamate HTTP reali
 
+[0.7.0]: https://github.com/miziomon/neuron-cli-test/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/miziomon/neuron-cli-test/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/miziomon/neuron-cli-test/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/miziomon/neuron-cli-test/compare/v0.3.0...v0.4.0

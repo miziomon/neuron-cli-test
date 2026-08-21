@@ -86,7 +86,7 @@ $ora = static function (?string $iso): string {
 $durata = static fn(mixed $minuti): string
     => is_numeric($minuti) ? intdiv((int) $minuti, 60) . 'h' . str_pad((string) ((int) $minuti % 60), 2, '0', STR_PAD_LEFT) . 'm' : '';
 
-/** Formatta i risultati di searchFlights() come elenco leggibile (max 10 opzioni). */
+/** Formatta i risultati di searchFlights() come elenco leggibile (max 5 opzioni). */
 $formattaVoli = static function (array $risultato) use ($pick, $ora, $durata): string {
     $items = $risultato['Result']['Items'] ?? [];
     if (!is_array($items) || $items === []) {
@@ -94,7 +94,7 @@ $formattaVoli = static function (array $risultato) use ($pick, $ora, $durata): s
     }
 
     $righe = [];
-    foreach (array_slice($items, 0, 10) as $indice => $item) {
+    foreach (array_slice($items, 0, 5) as $indice => $item) {
         $listOption = $item['ListOptions'][0] ?? [];
         $option = $listOption['Options'][0] ?? [];
         $voli = $option['Flights'] ?? [];
@@ -149,7 +149,8 @@ $formattaVoli = static function (array $risultato) use ($pick, $ora, $durata): s
 
     $totale = count($items);
 
-    return "Voli trovati: {$totale} (prime " . count($righe) . " opzioni):\n\n" . implode("\n\n", $righe);
+    return "Voli trovati: {$totale} (prime " . count($righe) . " opzioni):\n\n" . implode("\n\n", $righe)
+        . "\n\nPrezzi in EUR, ricercati il " . date('d/m/Y \a\l\l\e H:i') . ": possono variare fino al momento della prenotazione.";
 };
 
 /** Esegue la ricerca voli e ne formatta il risultato. */

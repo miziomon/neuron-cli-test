@@ -20,7 +20,7 @@ Gli agenti usano il provider OpenRouter (compatibile OpenAI) tramite `NeuronAI\P
 ## Struttura del codice
 
 - `chat.php` — entry point della chat interattiva. Carica manualmente il file `.env` (le variabili d'ambiente reali hanno precedenza), esegue le due fasi tramite la closure condivisa `eseguiFase` (loop di conversazione, retry con backoff esponenziale su HTTP 429, conteggio dei token, limite di iterazioni), valida i dati e li salva. Se l'agente conferma ma alcuni campi valorizzati non superano la validazione, `eseguiFase` non esce: rimanda gli errori all'agente (parametro `erroriValidazione`) e la fase continua finché i dati non sono corretti. Codici di uscita: `0` successo/rifiuto/uscita volontaria, `1` errore di configurazione o di comunicazione, `2` raggiunto il numero massimo di iterazioni.
-- `flightx-mcp.php` — server MCP su stdio (JSON-RPC 2.0 newline-delimited) che espone i servizi FlightX come tool `cerca_voli` e `seleziona_volo`; risponde SOLO su STDOUT, diagnostica su STDERR. Credenziali lette dalle variabili d'ambiente `FLIGHTX_*` passate dal connettore.
+- `flightx-mcp.php` — server MCP su stdio (JSON-RPC 2.0 newline-delimited) che espone i servizi FlightX come tool `cerca_voli` e `seleziona_volo`; risponde SOLO su STDOUT, diagnostica su STDERR. Credenziali lette dalle variabili d'ambiente `FLIGHTX_*` passate dal connettore. Il formatter di `cerca_voli` restituisce al massimo 5 opzioni leggibili con prezzi in EUR e timestamp di recupero.
 - `src/Neuron/OpenRouterAgent.php` — classe base astratta con il provider OpenRouter (`OpenAILike` su `https://openrouter.ai/api/v1`) condiviso dagli agenti.
 - `src/Neuron/ReceptionistAgent.php` — unico agente di raccolta: system prompt in italiano costruito con `SystemPrompt` (background, steps, output).
 - `src/Neuron/TurnoReceptionist.php` — DTO dello structured output della fase receptionist con attributi `#[SchemaProperty]`: `risposta` (obbligatoria), `nome`, `cognome`, `email`, `destinazione`, `aeroportoPartenza`, `aeroportoDestinazione`, `dataPartenza`, `dataRitorno`, `adulti`, `bambini` (nullable), `confermato` (bool, obbligatorio).
@@ -64,6 +64,7 @@ Senza `OPENROUTER_API_KEY` e `OPENROUTER_MODEL` lo script esce con errore; senza
 - Commenti, docblock, nomi di variabili/metodi e messaggi utente sono **in italiano**: mantenere questa lingua in tutto il codice del progetto.
 - Stile moderno: tipi dichiarati ovunque, proprietà `readonly`, arrow function e closure per la logica procedurale dell'entry point, eccezioni `RuntimeException` per gli errori di I/O.
 - Il codice applicativo usa il namespace `App\`; le classi sono piccole e a responsabilità singola.
+- Nei system prompt: l'anno corrente non è mai cablato, va iniettato con `date('Y')`; le regole di comportamento si distribuiscono nelle sezioni `SystemPrompt` (`background` per identità/contesto, `steps` per il flusso, `output` per formato e vincoli di risposta, `toolsUsage` per l'uso dei tool).
 
 ## Strategia di testing
 
