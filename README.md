@@ -1,21 +1,24 @@
 # Neuron CLI Test
 
-Applicazione CLI PHP didattica basata sul framework [Neuron AI](https://github.com/neuron-core/neuron-ai). Due agenti conversazionali in italiano lavorano in sequenza:
+Applicazione CLI PHP didattica basata sul framework [Neuron AI](https://github.com/neuron-core/neuron-ai). Tre agenti conversazionali in italiano lavorano in sequenza:
 
-1. **Receptionist** — un unico agente raccoglie **nome, cognome ed email**, poi **destinazione, aeroporti (IATA) di partenza e destinazione, data di partenza (ed eventuale ritorno), adulti e bambini**; chiede conferma esplicita del ricapitolo completo e salva in `data/utenti.json` e `data/viaggi.json` (collegati via email)
-2. **Voli** — riceve tutti i parametri già raccolti, chiede una sola conferma e cerca i voli tramite il **server MCP FlightX**, presentando un elenco leggibile delle opzioni disponibili
+1. **Receptionist** — un unico agente raccoglie **nome, cognome ed email**, poi **destinazione, aeroporti (IATA) di partenza e destinazione, data di partenza (ed eventuale ritorno), adulti e bambini**; chiede conferma esplicita del ricapitolo completo e salva la pratica in `data/pratica_YYYYmmdd_His.json` (un file per utente)
+2. **Voli** — riceve tutti i parametri già raccolti, chiede una sola conferma e cerca i voli tramite il **server MCP FlightX**; l'utente sceglie una delle opzioni e la scelta è registrata nella pratica (nessun dossier né prenotazione)
+3. **Hotel** — chiede se serve un hotel e, in caso affermativo, cerca tramite il **server MCP Hotelbeds** (geocoding Nominatim + disponibilità Hotelbeds) e fa scegliere una delle opzioni, registrata nella pratica
+
+In qualsiasi prompt si può digitare `riepilogo` (o `servizi`) per vedere i dati raccolti e i servizi selezionati finora, senza consumare token.
 
 ## Caratteristiche
 
 - Conversazione in italiano con system prompt strutturato (`SystemPrompt`)
-- Structured output ad ogni turno: ogni agente risponde con un oggetto tipizzato (`TurnoReceptionist`, `TurnoVolo`), non con testo libero
+- Structured output ad ogni turno: ogni agente risponde con un oggetto tipizzato (`TurnoReceptionist`, `TurnoVolo`, `TurnoHotel`), non con testo libero
 - Conferma esplicita dei dati prima del salvataggio
-- Validazione lato CLI: nome/cognome/destinazione (solo lettere, spazi, apostrofi e trattini), email (`filter_var` con `FILTER_VALIDATE_EMAIL`), aeroporti (IATA di 3 lettere), date (`YYYY-MM-DD`, ritorno non precedente alla partenza), passeggeri (almeno 1 adulto, massimo 9 totali)
-- Persistenza su file JSON (`data/utenti.json`, `data/viaggi.json`)
+- Validazione lato CLI: nome/cognome/destinazione (solo lettere, spazi, apostrofi e trattini), email (`filter_var` con `FILTER_VALIDATE_EMAIL`), aeroporti (IATA di 3 lettere), date (`YYYY-MM-DD`, ritorno non precedente alla partenza, check-out successivo al check-in), passeggeri (almeno 1 adulto, massimo 9 totali), età dei bambini (0-17) per la ricerca hotel
+- Persistenza su un file JSON per utente (`data/pratica_*.json`), aggiornato a ogni selezione
 - Conteggio dei token (input / output / totale) sotto ogni risposta dell'agente
-- Riepilogo finale dei dati raccolti (anagrafica + viaggio) prima dell'uscita
+- Comando `riepilogo` per visualizzare i servizi selezionati + riepilogo finale prima dell'uscita
 - Limite configurabile di iterazioni con chiusura automatica; il contatore riparte da `#1` a ogni fase
-- Ricerca voli via **MCP**: server stdio (`flightx-mcp.php`) che espone il wrapper FlightX come tool `cerca_voli` / `seleziona_volo`, collegato all'agente con `McpConnector`
+- Ricerca voli e hotel via **MCP**: server stdio (`flightx-mcp.php`, `hotelbeds-mcp.php`) che espongono i wrapper FlightX e Hotelbeds/Nominatim come tool, collegati agli agenti con `McpConnector`
 - Retry con backoff esponenziale in caso di rate limit (HTTP 429)
 - Colori ANSI (disattivabili con `NO_COLOR=1`)
 - Suite di test PHPUnit senza chiamate HTTP reali (provider finto)
@@ -43,11 +46,18 @@ OPENROUTER_API_KEY=sk-or-...
 OPENROUTER_MODEL=openai/gpt-5.6-luna   # un qualsiasi modello disponibile su OpenRouter
 MAX_ITERAZIONI=6                        # opzionale, default 6
 
-# Credenziali FlightX (fase 3, ricerca voli via MCP)
+# Credenziali FlightX (fase 2, ricerca voli via MCP)
 FLIGHTX_BASE_URL=https://api.stage.flightx.app
 FLIGHTX_API_KEY=...
 FLIGHTX_USERNAME=...
 FLIGHTX_PASSWORD_MD5=...                # password già hashata con md5(strtolower(...))
+
+# Credenziali Hotelbeds + Nominatim (fase 3, ricerca hotel via MCP)
+HOTELBEDS_BASE_URL=https://api.test.hotelbeds.com/hotel-api/1.0
+HOTELBEDS_API_KEY=...
+HOTELBEDS_SECRET=...
+NOMINATIM_USER_AGENT=neuron-travel-cli/1.0   # obbligatorio per policy Nominatim
+NOMINATIM_EMAIL=...                          # opzionale
 ```
 
 Le variabili d'ambiente reali hanno precedenza sui valori del file `.env`:
@@ -64,7 +74,7 @@ Il modello deve supportare lo structured output (`response_format` JSON).
 php chat.php
 ```
 
-Il receptionist si presenta e raccoglie in un'unica conversazione anagrafica, destinazione, aeroporti, date e passeggeri (con ricapitolo e conferma); poi l'agente voli cerca le opzioni disponibili. I dati vengono salvati in `data/utenti.json` e `data/viaggi.json`. Per uscire manualmente: `esci`, `exit` o `quit`.
+Il receptionist si presenta e raccoglie in un'unica conversazione anagrafica, destinazione, aeroporti, date e passeggeri (con ricapitolo e conferma); poi l'agente voli cerca le opzioni disponibili e fa scegliere un volo; infine l'agente hotel propone la ricerca del soggiorno. I dati e le selezioni vengono salvati in `data/pratica_YYYYmmdd_His.json`. Per vedere i servizi selezionati in qualsiasi momento: `riepilogo`. Per uscire manualmente: `esci`, `exit` o `quit`.
 
 Codici di uscita:
 
@@ -85,25 +95,30 @@ I test non effettuano chiamate HTTP: usano un provider finto (`tests/FakeProvide
 ## Struttura del progetto
 
 ```
-chat.php                      # entry point: fase receptionist + fase voli
-flightx-mcp.php               # server MCP stdio che espone i tool FlightX
+chat.php                      # entry point: fase receptionist + fase voli + fase hotel
+flightx-mcp.php               # server MCP stdio che espone il tool FlightX (cerca_voli)
+hotelbeds-mcp.php             # server MCP stdio che espone il tool hotel (cerca_hotel)
 src/Neuron/OpenRouterAgent.php  # classe base astratta con il provider OpenRouter condiviso
 src/Neuron/ReceptionistAgent.php  # agente di raccolta unico (anagrafica + viaggio + parametri volo)
 src/Neuron/TurnoReceptionist.php  # DTO structured output della fase receptionist
 src/Neuron/VoliAgent.php      # agente voli: tool MCP FlightX + system prompt
-src/Neuron/TurnoVolo.php      # DTO structured output fase voli (aeroporti, date, passeggeri)
+src/Neuron/TurnoVolo.php      # DTO structured output fase voli (parametri ricerca, voloSelezionato)
+src/Neuron/HotelAgent.php     # agente hotel: tool MCP Hotelbeds + system prompt
+src/Neuron/TurnoHotel.php     # DTO structured output fase hotel (date soggiorno, età bambini, hotelSelezionato)
 src/MCP/LineStdioTransport.php  # transport MCP stdio con buffer (gestisce risposte > 4 KB)
 src/Services/FlightX/         # wrapper delle API FlightX (client, config, eccezioni)
-src/Support/Archivio.php      # persistenza su file JSON
+src/Services/Hotelbeds/       # wrapper delle API Hotelbeds (client, config, eccezioni)
+src/Services/Geocoding/       # wrapper dell'API Nominatim (client, config, eccezioni)
+src/Support/Archivio.php      # persistenza su file JSON (storico, non più usato da chat.php)
+src/Support/Pratica.php       # persistenza della pratica: un file JSON per utente
 tests/                        # suite PHPUnit
-data/utenti.json          # anagrafiche raccolte a runtime (git-ignored)
-data/viaggi.json          # viaggi raccolti a runtime, collegati via email (git-ignored)
+data/pratica_*.json           # pratiche raccolte a runtime (git-ignored)
 ```
 
 ## Sicurezza
 
-- Il file `.env` contiene la chiave API ed è escluso da git: non committarlo mai.
-- `data/utenti.json` e `data/viaggi.json` contengono dati personali in chiaro e sono anch'essi esclusi da git.
+- Il file `.env` contiene le chiavi API ed è escluso da git: non committarlo mai.
+- `data/pratica_*.json` contiene dati personali in chiaro ed è anch'esso escluso da git.
 
 ## Changelog
 

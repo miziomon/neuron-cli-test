@@ -7,10 +7,10 @@ namespace App\Tests;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Verifica l'handshake del server MCP su stdio (initialize + tools/list).
- * Nessuna chiamata all'API FlightX: i tool vengono solo elencati, mai invocati.
+ * Verifica l'handshake del server MCP hotel su stdio (initialize + tools/list).
+ * Nessuna chiamata alle API Hotelbeds/Nominatim: i tool vengono solo elencati, mai invocati.
  */
-class FlightXMcpServerTest extends TestCase
+class HotelbedsMcpServerTest extends TestCase
 {
     /** @var array<int, resource> */
     private array $pipes = [];
@@ -21,7 +21,7 @@ class FlightXMcpServerTest extends TestCase
     protected function setUp(): void
     {
         $this->process = proc_open(
-            [PHP_BINARY, dirname(__DIR__) . '/flightx-mcp.php'],
+            [PHP_BINARY, dirname(__DIR__) . '/hotelbeds-mcp.php'],
             [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
             $this->pipes,
         );
@@ -65,21 +65,22 @@ class FlightXMcpServerTest extends TestCase
         ]);
 
         $this->assertSame(1, $init['id']);
-        $this->assertSame('flightx-mcp', $init['result']['serverInfo']['name']);
+        $this->assertSame('hotelbeds-mcp', $init['result']['serverInfo']['name']);
         $this->assertArrayHasKey('tools', $init['result']['capabilities']);
 
         $lista = $this->richiedi(['jsonrpc' => '2.0', 'id' => 2, 'method' => 'tools/list']);
 
         $nomi = array_column($lista['result']['tools'], 'name');
-        $this->assertContains('cerca_voli', $nomi);
-        // La selezione del volo è solo registrata dalla chat: nessun dossier lato MCP
-        $this->assertNotContains('seleziona_volo', $nomi);
+        $this->assertSame(['cerca_hotel'], $nomi);
 
         // Ogni tool deve avere uno schema di input valido per il connettore Neuron
         foreach ($lista['result']['tools'] as $tool) {
             $this->assertSame('object', $tool['inputSchema']['type']);
             $this->assertArrayHasKey('properties', $tool['inputSchema']);
         }
+
+        $cerca = $lista['result']['tools'][0];
+        $this->assertSame(['destinazione', 'check_in', 'check_out'], $cerca['inputSchema']['required']);
     }
 
     public function testToolSconosciutoRestituisceErroreLeggibile(): void

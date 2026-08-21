@@ -54,7 +54,12 @@ class TurnoVolo
     public bool $ricercaCompletata = false;
 
     #[SchemaProperty(
-        description: "true quando la fase deve terminare: dopo aver presentato l'elenco dei voli, oppure se l'utente rifiuta la ricerca",
+        description: "Descrizione leggibile dell'opzione di volo scelta dall'utente (numero dell'opzione, tratta, orari, compagnia, prezzo), oppure null se l'utente non ha ancora scelto o non vuole scegliere"
+    )]
+    public ?string $voloSelezionato = null;
+
+    #[SchemaProperty(
+        description: "true quando la fase deve terminare: l'utente ha scelto un volo, oppure ha rifiutato la ricerca o la selezione",
         required: true
     )]
     public bool $confermato = false;

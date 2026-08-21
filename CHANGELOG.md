@@ -5,6 +5,23 @@ Tutte le modifiche rilevanti a questo progetto sono documentate in questo file.
 Il formato è basato su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/)
 e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/).
 
+## [0.8.0] - 2026-08-21
+
+### Aggiunto
+
+- **Terza fase di conversazione (`HotelAgent`)**: chiede se serve un hotel, propone come default le date del volo, chiede le età dei bambini (0-17) quando presenti e fa scegliere una delle opzioni trovate; DTO `TurnoHotel`
+- Server MCP stdio (`hotelbeds-mcp.php`) con il tool `cerca_hotel`: geocodifica la destinazione con Nominatim e interroga la disponibilità Hotelbeds (raggio 20 km, max 5 opzioni, prezzi in EUR, timestamp di recupero)
+- Wrapper Hotelbeds (`src/Services/Hotelbeds/`): ricerca disponibilità in 4 varianti + `checkRates()`, firma `X-Signature` ricalcolata a ogni richiesta, validazioni locali; portato da Illuminate/Carbon a Guzzle puro come FlightX. Sola lettura: nessuna prenotazione
+- Wrapper Geocoding Nominatim (`src/Services/Geocoding/`): `geocode()`/`search()` con throttle di processo (1 richiesta/secondo) e `userAgent` obbligatorio per policy d'uso
+- Persistenza per utente (`src/Support/Pratica.php`): un file `data/pratica_YYYYmmdd_His.json` con anagrafica, viaggio e selezioni (volo, hotel), creato dopo la fase receptionist e aggiornato a ogni selezione; i file esistenti non vengono mai eliminati
+- Comando `riepilogo` (o `servizi`) disponibile a ogni prompt: mostra anagrafica, viaggio e servizi selezionati senza chiamare il modello né consumare iterazioni
+- Test: validazioni locali di `HotelbedsClient` e `NominatimClient`, handshake del server MCP hotel, persistenza `Pratica` (42 test, 103 asserzioni)
+
+### Cambiato
+
+- **Selezione del volo senza dossier**: `VoliAgent` fa scegliere una delle opzioni trovate e la registra nella pratica (`voloSelezionato` in `TurnoVolo`); rimosso il tool `seleziona_volo` dal server MCP e ogni riferimento al dossier temporaneo
+- `data/utenti.json` e `data/viaggi.json` non sono più scritti: sostituiti dalla pratica per utente (restano come storico)
+
 ## [0.7.0] - 2026-08-21
 
 ### Cambiato
@@ -93,6 +110,7 @@ e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/)
 - Caricamento del file `.env` con precedenza delle variabili d'ambiente reali
 - Suite di test PHPUnit con provider finto senza chiamate HTTP reali
 
+[0.8.0]: https://github.com/miziomon/neuron-cli-test/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/miziomon/neuron-cli-test/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/miziomon/neuron-cli-test/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/miziomon/neuron-cli-test/compare/v0.4.0...v0.5.0

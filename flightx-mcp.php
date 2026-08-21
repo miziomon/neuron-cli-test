@@ -3,8 +3,8 @@
 declare(strict_types=1);
 
 /**
- * Server MCP su stdio che espone i servizi FlightX (ricerca e selezione voli)
- * come tool JSON-RPC 2.0 newline-delimited, compatibile con NeuronAI\MCP\McpConnector.
+ * Server MCP su stdio che espone la ricerca voli FlightX come tool
+ * JSON-RPC 2.0 newline-delimited, compatibile con NeuronAI\MCP\McpConnector.
  *
  * Protocollo: una richiesta JSON per riga su STDIN, una risposta JSON per riga su
  * STDOUT. Ogni diagnostica va su STDERR: STDOUT è riservato al protocollo.
@@ -33,7 +33,7 @@ $schemi = [
     'cerca_voli' => [
         'name' => 'cerca_voli',
         'description' => 'Cerca voli disponibili su FlightX e restituisce un elenco leggibile delle opzioni '
-            . '(compagnie, orari, scali, prezzo), con i riferimenti tecnici per una eventuale selezione.',
+            . '(compagnie, orari, scali, prezzo). Nessuna prenotazione viene effettuata.',
         'inputSchema' => [
             'type' => 'object',
             'properties' => [
@@ -47,23 +47,6 @@ $schemi = [
                 'search_type' => ['type' => 'string', 'enum' => ['OW', 'RT'], 'description' => 'OW = sola andata, RT = andata e ritorno (default OW)'],
             ],
             'required' => ['departure_airport', 'arrival_airport', 'departure_date'],
-        ],
-    ],
-    'seleziona_volo' => [
-        'name' => 'seleziona_volo',
-        'description' => 'Verifica disponibilità e prezzo di una delle opzioni trovate con cerca_voli '
-            . 'e crea un dossier temporaneo (24 ore). NON effettua alcuna prenotazione.',
-        'inputSchema' => [
-            'type' => 'object',
-            'properties' => [
-                'item_id' => ['type' => 'string', 'description' => 'Riferimento opzione nella forma "<ItemId>_<OptionListId>" (es. "1_1")'],
-                'item_key' => ['type' => 'string', 'description' => 'ItemKey dell\'opzione, restituito da cerca_voli'],
-                'option_keys' => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => 'OptionKey dell\'opzione scelta'],
-                'adults' => ['type' => 'integer', 'description' => 'Numero di adulti (deve coincidere con la ricerca)'],
-                'children' => ['type' => 'integer', 'description' => 'Numero di bambini (default 0)'],
-                'infants' => ['type' => 'integer', 'description' => 'Numero di neonati (default 0)'],
-            ],
-            'required' => ['item_id', 'item_key', 'option_keys', 'adults'],
         ],
     ],
 ];
@@ -121,11 +104,6 @@ $formattaVoli = static function (array $risultato) use ($pick, $ora, $durata): s
         $scali = $pick((array) $option, 'Stops') ?? max(0, count($tratte) - 1);
         $durataOpzione = $durata($pick((array) $option, 'TotalDuration'));
 
-        $itemId = $pick((array) $item, 'ItemId') ?? $indice + 1;
-        $optionListId = $pick((array) $listOption, 'OptionListId') ?? '1';
-        $itemKey = $pick((array) $item, 'ItemKey') ?? '';
-        $optionKey = $pick((array) $option, 'OptionKey') ?? '';
-
         $dettagli = array_filter([
             ((int) $scali) === 0 ? 'diretto' : "{$scali} " . ((int) $scali === 1 ? 'scalo' : 'scali'),
             $durataOpzione !== '' ? "durata {$durataOpzione}" : null,
@@ -136,14 +114,10 @@ $formattaVoli = static function (array $risultato) use ($pick, $ora, $durata): s
         ]);
 
         $righe[] = sprintf(
-            "%d) %s\n   %s\n   Riferimenti per la selezione: item_id \"%s_%s\", item_key \"%s\", option_keys [\"%s\"]",
+            "%d) %s\n   %s",
             $indice + 1,
             $tratte !== [] ? implode(' + ', $tratte) : '(dettagli tratta non disponibili)',
             implode(' · ', $dettagli),
-            $itemId,
-            $optionListId,
-            $itemKey,
-            $optionKey,
         );
     }
 
@@ -167,27 +141,6 @@ $cercaVoli = static function (array $args) use ($cliente, $formattaVoli): string
     );
 
     return $formattaVoli($risultato);
-};
-
-/** Seleziona un'opzione di volo e restituisce l'esito leggibile. */
-$selezionaVolo = static function (array $args) use ($cliente): string {
-    $risultato = $cliente()->selectFlightOption(
-        itemId: (string) ($args['item_id'] ?? ''),
-        itemKey: (string) ($args['item_key'] ?? ''),
-        optionKeys: array_map('strval', (array) ($args['option_keys'] ?? [])),
-        adults: (int) ($args['adults'] ?? 1),
-        children: (int) ($args['children'] ?? 0),
-        infants: (int) ($args['infants'] ?? 0),
-    );
-
-    $dossierId = $risultato['Result']['VirtualDossierId']
-        ?? $risultato['Result']['DossierId']
-        ?? $risultato['VirtualDossierId']
-        ?? null;
-
-    return "Opzione verificata e disponibile."
-        . ($dossierId !== null ? " Dossier temporaneo creato (valido 24 ore): {$dossierId}." : '')
-        . " Nessuna prenotazione è stata effettuata.";
 };
 
 $rispondi = static function (mixed $id, mixed $result): void {
@@ -248,7 +201,6 @@ while (($linea = fgets(STDIN)) !== false) {
             try {
                 $testo = match ($nome) {
                     'cerca_voli' => $cercaVoli($argomenti),
-                    'seleziona_volo' => $selezionaVolo($argomenti),
                     default => throw new RuntimeException("Tool sconosciuto: {$nome}"),
                 };
                 $rispondi($id, ['content' => [['type' => 'text', 'text' => $testo]], 'isError' => false]);
